@@ -1,4 +1,4 @@
-# Post-GWAS Gene Prioritization and Literature Validation Agent
+# Post-GWAS Gene Prioritization and Literature Validation Agent for soybean
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
 
-**AI-powered gene prioritization and literature validation for plant GWAS studies**
+**AI-powered gene prioritization and literature validation for soybean GWAS studies**
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Input Files](#-input-files) • [Output Files](#-output-files)
 
