@@ -246,7 +246,7 @@ python post_gwas_gene_agent.py \
     --kegg ZH13.KEGG.txt \
     --trait "Soybean plant height" \
     --pvalue-threshold 0.1 \
-    --top-n 200 \
+    --top-n 30 \
     --tmps-high-threshold 0.8 \
     --run-literature \
     --tmps-threshold 0.8 \
