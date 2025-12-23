@@ -227,7 +227,7 @@ python post_gwas_gene_agent.py \
     --kegg ZH13.KEGG.txt \
     --trait "Soybean plant height" \
     --pvalue-threshold 0.1 \
-    --top-n 200 \
+    --top-n 30 \
     --out-prefix gwas_plant_height
 ```
 
@@ -278,7 +278,7 @@ python post_gwas_gene_agent.py \
 |----------|-------------|---------|
 | `--trait` | Trait description (for LLM and PubMed) | **required** |
 | `--pvalue-threshold` | fastBAT gene-level P-value filter | `0.1` |
-| `--top-n` | Max genes to evaluate with LLM | `200` |
+| `--top-n` | Max genes to evaluate with LLM | `30` |
 | `--out-prefix` | Output file prefix | `gwas_trait` |
 
 ### TMPS Scoring
