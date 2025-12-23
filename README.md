@@ -397,13 +397,8 @@ metagwas/
 
 ---
 
-🤝 Contributing
-Pull requests and issue reports are welcome, especially for:
-Supporting other species or genome builds
-Additional annotation sources (e.g. transcription factor databases)
-New scoring schemes or visualization outputs
+## 📜 License
 
-📜 License
-You can adapt this section to your project’s license, e.g.:
 This project is licensed under the MIT License.See the LICENSE file for details.
-If you’d like, I can tailor this README to your exact file names, URLs, or add a “Results” section using examples from your gwas_plant_height_* outputs.
+
+---
