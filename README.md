@@ -1,4 +1,4 @@
-# Post-GWAS Gene Prioritization and Literature Validation Agent for soybean
+# Post-GWAS Gene Prioritization and Literature Validation Agent for Soybean
 
 <div align="center">
 
