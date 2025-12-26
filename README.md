@@ -405,6 +405,9 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 
 
+
+
+
 # Soybean Gene Prioritization and Analysis Pipeline Part 2
 
 A comprehensive bioinformatics pipeline for post-GWAS gene prioritization and functional analysis in soybean. This toolkit integrates statistical evidence (GWAS), semantic embeddings, expression profiles, and AI-powered analysis to identify and characterize candidate genes for target traits.
