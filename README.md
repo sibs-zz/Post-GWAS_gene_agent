@@ -402,3 +402,260 @@ metagwas/
 This project is licensed under the MIT License. See the LICENSE file for details.
 
 ---
+
+
+
+# Soybean Gene Prioritization and Analysis Pipeline Part 2
+
+A comprehensive bioinformatics pipeline for post-GWAS gene prioritization and functional analysis in soybean. This toolkit integrates statistical evidence (GWAS), semantic embeddings, expression profiles, and AI-powered analysis to identify and characterize candidate genes for target traits.
+
+## 🎯 Overview
+
+This pipeline consists of two additional complementary tools:
+
+1. **Gene Priority Calculator** (`calc_priority.py`) - Identifies top candidate genes for a given trait concept using semantic matching and multi-dimensional scoring
+2. **AI-Powered Gene Analysis** (`gene_ai_analysis.py`) - Generates comprehensive functional analysis reports for prioritized genes using Large Language Models (LLM)
+
+## ✨ Features
+
+### Gene Priority Calculator
+- **Semantic Trait Matching**: Automatically finds GWAS traits semantically related to your query using sentence transformers
+- **Multi-dimensional Scoring**: Combines GWAS statistical significance, semantic similarity, and expression levels
+- **Intelligent Deduplication**: Aggregates multiple SNP associations per gene and ranks by priority
+- **Expression Filtering**: Only considers genes with detectable expression (TPM > threshold)
+
+### AI-Powered Gene Analysis
+- **Comprehensive Reports**: Generates publication-ready gene functional analysis reports
+- **Evidence Integration**: Synthesizes GWAS statistics with biological annotations and semantic profiles
+- **Mechanism Hypotheses**: Proposes specific molecular mechanisms linking genes to traits
+- **Experiment Suggestions**: Recommends validation experiments (qPCR, CRISPR/Cas9, etc.)
+- **Interactive & Batch Modes**: Analyze individual genes or top candidates automatically
+
+## 🔬 Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. Gene Priority Calculation (calc_priority.py)            │
+│     └─> Input: Trait concept (e.g., "plant architecture")   │
+│         └─> Output: Ranked gene list with Priority Index    │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. AI-Powered Analysis (gene_ai_analysis.py)               │
+│     └─> Input: Gene IDs from step 1                         │
+│         └─> Output: Detailed functional analysis reports    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📋 Requirements
+
+### Python Dependencies
+
+```bash
+pip install pandas numpy scikit-learn sentence-transformers openai tqdm
+```
+
+### Required Files
+
+#### For `calc_priority.py`:
+- `Soybean_Gene_Embeddings_Full.npy` - Pre-computed gene semantic embeddings
+- `Soybean_Gene_Semantic_Profiles_Full.csv` - Gene semantic profiles
+- `Gene_Phenotype_Associations_Readable.csv` - GWAS gene-trait associations
+- `stringtie_gene_314_TPM.txt` - Gene expression matrix (TPM values)
+
+#### For `gene_ai_analysis.py`:
+- `Soybean_Gene_Semantic_Profiles_Full.csv` - Gene semantic profiles
+- `Gene_Phenotype_Associations_Readable.csv` - GWAS gene-trait associations
+
+## 🔑 API Key Configuration
+
+Both scripts support flexible API key management with the following priority order:
+
+1. **Environment Variable** (Recommended for production)
+   ```bash
+   export DEEPSEEK_API_KEY="your-api-key-here"
+   ```
+
+2. **key.txt in Current Directory**
+   ```bash
+   echo "your-api-key-here" > key.txt
+   ```
+
+3. **key.txt in Script Directory**
+   ```bash
+   echo "your-api-key-here" > raw_mlma/key.txt
+   ```
+
+> **Note**: Only `gene_ai_analysis.py` requires the DeepSeek API key. `calc_priority.py` uses local sentence transformer models and does not require API access.
+
+## 🚀 Quick Start
+
+### Step 1: Calculate Gene Priorities
+
+Identify top candidate genes for your trait of interest:
+
+```bash
+python calc_priority.py "plant architecture"
+```
+
+**Output**: `Priority_Rankings_Concept_plant_architecture.csv`
+
+**Example Output**:
+```
+GeneID,Priority_Index,Support_SNPs,Best_Trait,P_Value,Semantic_Score,SNP_ID
+SoyZH13_20G103500,113.6894,348,Leaf shape,6.45321e-114,0.24959999322891235,20_40047841
+SoyZH13_20G106100,95.9571,306,Leaf shape,3.8393e-96,0.27070000767707825,20_40378292
+...
+```
+
+### Step 2: Analyze Top Candidates
+
+Generate detailed functional analysis reports for prioritized genes:
+
+```bash
+python gene_ai_analysis.py
+```
+
+**Interactive Mode** (default):
+```
+Enter GeneID to analyze (or 'q' to quit): SoyZH13_20G103500
+```
+
+**Output**: `{GeneID}_Analysis_Report.md` for each analyzed gene
+
+## 📊 Priority Index Calculation
+
+The Priority Index (PI) combines multiple evidence sources:
+
+```
+PI = (W1 × -log10(P-value)) + (W2 × Semantic_Score × Expression_Gate)
+```
+
+Where:
+- **W1** = 1.0 (weight for statistical significance)
+- **W2** = 2.0 (weight for semantic relevance)
+- **Expression_Gate** = 1.0 if Max_TPM > threshold, else 0.0
+- **Semantic_Score** = Cosine similarity between gene embedding and query
+
+Genes with no detectable expression (Max_TPM ≤ threshold) are assigned PI = 0.0.
+
+## 📝 Input File Formats
+
+### Gene_Phenotype_Associations_Readable.csv
+```csv
+GeneID,Trait,P_Value,SNP_ID,Source_File
+SoyZH13_13G057501,Flower Color,7.477090000000001e-122,13_18130351,henanpheno2014_FC.x.pheno.norm.mlma.ma
+SoyZH13_13G057500,Flower Color,7.477090000000001e-122,13_18130351,henanpheno2014_FC.x.pheno.norm.mlma.ma
+SoyZH13_13G057500,Seedling color,9.702160000000001e-121,13_18130351,henanpheno2014_SC.x.pheno.norm.mlma.ma
+...
+```
+
+### Soybean_Gene_Semantic_Profiles_Full.csv
+```csv
+GeneID,Semantic_Profile
+SoyZH13_01G001,"This gene encodes a transcription factor involved in..."
+...
+```
+
+### stringtie_gene_314_TPM.txt
+```tsv
+Gene    Tissue1    Tissue2    Tissue3    ...
+SoyZH13_01G001    12.5       8.3        15.2       ...
+...
+```
+
+## 📤 Output Files
+
+### From `calc_priority.py`:
+- **Priority_Rankings_Concept_{query}.csv**: Ranked gene list with:
+  - `GeneID`: Gene identifier
+  - `Priority_Index`: Calculated priority score
+  - `Support_SNPs`: Number of supporting SNPs
+  - `Best_Trait`: Most significant associated trait
+  - `P_Value`: Best P-value
+  - `Semantic_Score`: Semantic similarity to query
+  - `Max_TPM`: Maximum expression across samples
+  - `SNP_ID`: Top associated SNP
+
+### From `gene_ai_analysis.py`:
+- **{GeneID}_Analysis_Report.md**: Comprehensive analysis report including:
+  - Core conclusion
+  - Evidence integration (statistical + functional)
+  - Mechanism hypothesis
+  - Proposed validation experiments
+
+## ⚙️ Configuration Parameters
+
+### `calc_priority.py`:
+```python
+W1 = 1.0                    # Weight for GWAS P-value
+W2 = 2.0                    # Weight for semantic similarity
+EXPR_THRESHOLD = 1.0        # Minimum TPM for expression gate
+TRAIT_MATCH_THRESHOLD = 0.4 # Minimum semantic similarity for trait matching
+MODEL_NAME = 'all-mpnet-base-v2'  # Sentence transformer model
+```
+
+### `gene_ai_analysis.py`:
+```python
+MODEL_NAME = "deepseek-chat"  # LLM model
+TEMPERATURE = 0.2              # Lower = more deterministic
+```
+
+## 🔍 Example Workflow
+
+### Complete Analysis Pipeline
+
+```bash
+# 1. Find top candidates for "seed oil content"
+python calc_priority.py "seed oil content"
+
+# 2. Review the top 10 genes in Priority_Rankings_Concept_seed_oil_content.csv
+# 3. Analyze top candidates interactively
+python gene_ai_analysis.py
+# Enter: SoyZH13_05G123
+# Enter: SoyZH13_08G456
+# Enter: q  # quit
+```
+
+## 🧪 Technical Details
+
+### Semantic Matching
+- Uses `all-mpnet-base-v2` sentence transformer for semantic embeddings
+- Cosine similarity for trait and gene matching
+- Handles natural language queries (e.g., "plant architecture", "seed development")
+
+### AI Analysis
+- Powered by DeepSeek Chat LLM
+- Retrieval-Augmented Generation (RAG) approach:
+  - Retrieves GWAS statistical evidence
+  - Retrieves biological context (semantic profiles)
+  - Augments prompt with structured evidence
+  - Generates comprehensive analysis
+
+### Deduplication Strategy
+- Multiple SNPs per gene are aggregated
+- Only the highest Priority Index association is kept
+- `Support_SNPs` column indicates confidence (more SNPs = higher confidence)
+
+## 🐛 Troubleshooting
+
+### "API Key not found" Error
+- Ensure `DEEPSEEK_API_KEY` environment variable is set, or
+- Create `key.txt` file in current or script directory
+- Only required for `gene_ai_analysis.py`
+
+### "No traits found semantically related"
+- Lower `TRAIT_MATCH_THRESHOLD` in `calc_priority.py` (default: 0.4)
+- Try alternative query terms (e.g., "height" instead of "plant stature")
+
+### Missing Input Files
+- Ensure all required CSV/TSV files are in the working directory
+- Check file names match exactly (case-sensitive)
+
+### Low Priority Scores
+- Check if genes have detectable expression (Max_TPM > EXPR_THRESHOLD)
+- Verify GWAS associations have significant P-values
+- Adjust weights (W1, W2) if needed
+
+---
