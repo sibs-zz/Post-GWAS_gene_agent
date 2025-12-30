@@ -559,14 +559,14 @@ SoyZH13_20G106100,Leaf shape,3.8393e-96,20_40378292,shanxipheno2014_LS.x.pheno.n
 ### Soybean_Gene_Semantic_Profiles_Full.csv
 ```csv
 GeneID,Semantic_Profile
-SoyZH13_01G001,"This gene encodes a transcription factor involved in..."
+SoyZH13_16G122600,"This gene encodes a protein involved in..."
 ...
 ```
 
 ### stringtie_gene_314_TPM.txt
 ```tsv
 Gene    Tissue1    Tissue2    Tissue3    ...
-SoyZH13_01G001    12.5       8.3        15.2       ...
+SoyZH13_16G122600    12.5       8.3        15.2       ...
 ...
 ```
 
@@ -618,8 +618,8 @@ python calc_priority.py "seed oil content"
 # 2. Review the top 10 genes in Priority_Rankings_Concept_seed_oil_content.csv
 # 3. Analyze top candidates interactively
 python gene_ai_analysis.py
-# Enter: SoyZH13_05G123
-# Enter: SoyZH13_08G456
+# Enter: SoyZH13_20G103500
+# Enter: SoyZH13_16G122600
 # Enter: q  # quit
 ```
 
