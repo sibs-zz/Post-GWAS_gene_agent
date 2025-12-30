@@ -537,7 +537,7 @@ PI = (W1 × -log10(P-value)) + (W2 × Semantic_Score × Expression_Gate)
 
 Where:
 - **W1** = 1.0 (weight for statistical significance)
-- **W2** = 2.0 (weight for semantic relevance)
+- **W2** = 100.0 (weight for semantic relevance)
 - **Expression_Gate** = 1.0 if Max_TPM > threshold, else 0.0
 - **Semantic_Score** = Cosine similarity between gene embedding and query
 
@@ -548,9 +548,11 @@ Genes with no detectable expression (Max_TPM ≤ threshold) are assigned PI = 0.
 ### Gene_Phenotype_Associations_Readable.csv
 ```csv
 GeneID,Trait,P_Value,SNP_ID,Source_File
-SoyZH13_13G057501,Flower Color,7.477090000000001e-122,13_18130351,henanpheno2014_FC.x.pheno.norm.mlma.ma
-SoyZH13_13G057500,Flower Color,7.477090000000001e-122,13_18130351,henanpheno2014_FC.x.pheno.norm.mlma.ma
-SoyZH13_13G057500,Seedling color,9.702160000000001e-121,13_18130351,henanpheno2014_SC.x.pheno.norm.mlma.ma
+SoyZH13_20G103500,Leaf shape,6.45321e-114,20_40047841,beijingpheno2014_LS.x.pheno.norm.mlma.ma
+SoyZH13_20G103500,Leaf shape,6.56693e-114,20_40047841,shanxipheno2014_LS.x.pheno.norm.mlma.ma
+SoyZH13_20G103500,Leaf shape,3.13243e-107,20_40047841,shanxipheno2013_LS.x.pheno.norm.mlma.ma
+SoyZH13_20G106101,Leaf shape,3.8393e-96,20_40378292,shanxipheno2014_LS.x.pheno.norm.mlma.ma
+SoyZH13_20G106100,Leaf shape,3.8393e-96,20_40378292,shanxipheno2014_LS.x.pheno.norm.mlma.ma
 ...
 ```
 
@@ -593,9 +595,9 @@ SoyZH13_01G001    12.5       8.3        15.2       ...
 ### `calc_priority.py`:
 ```python
 W1 = 1.0                    # Weight for GWAS P-value
-W2 = 2.0                    # Weight for semantic similarity
+W2 = 100.0                    # Weight for semantic similarity
 EXPR_THRESHOLD = 1.0        # Minimum TPM for expression gate
-TRAIT_MATCH_THRESHOLD = 0.4 # Minimum semantic similarity for trait matching
+TRAIT_MATCH_THRESHOLD = 0.6 # Minimum semantic similarity for trait matching
 MODEL_NAME = 'all-mpnet-base-v2'  # Sentence transformer model
 ```
 
