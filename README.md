@@ -24,13 +24,20 @@
 
 ### Overview
 
-A toolkit of three independent, AI-driven analysis scripts for soybean post-GWAS research. Each script can be used standalone or in combination, depending on your analysis needs:
+A toolkit of three independent, AI-driven analysis scripts for soybean post-GWAS research. Each script can be used standalone or in combination, depending on your analysis needs.
+
+**Repository**: https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+
+```bash
+git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+cd Post-GWAS_gene_agent
+```
 
 | Script | Purpose | API Key Required |
 |--------|---------|:----------------:|
 | `post_gwas_gene_agent.py` | TMPS scoring & PubMed literature validation for candidate genes | DeepSeek |
-| `2_calc_priority.py` | Semantic trait matching & multi-dimensional gene priority ranking | No |
-| `1_gene_ai_analysis.py` | AI-generated publication-grade functional analysis reports | DeepSeek |
+| `calc_priority.py` | Semantic trait matching & multi-dimensional gene priority ranking | No |
+| `gene_ai_analysis.py` | AI-generated publication-grade functional analysis reports | DeepSeek |
 
 ---
 
@@ -44,10 +51,10 @@ conda create -n gwas_agent python=3.9 -y
 conda activate gwas_agent
 
 # Install all dependencies
-pip install pandas numpy requests openai tenacity scikit-learn sentence-transformers tqdm
+pip install -r requirements.txt
 ```
 
-Or use `requirements.txt`:
+`requirements.txt`:
 
 ```txt
 pandas>=1.3.0
@@ -60,17 +67,15 @@ sentence-transformers>=2.2.0
 tqdm>=4.62.0
 ```
 
-```bash
-pip install -r requirements.txt
-```
-
 #### API Key Configuration
 
-**DeepSeek API Key** — required by `post_gwas_gene_agent.py` and `1_gene_ai_analysis.py`. Loaded in priority order:
+**DeepSeek API Key** — required by `post_gwas_gene_agent.py` and `gene_ai_analysis.py`. Loaded in priority order:
 
 1. **Environment variable** (recommended): `export DEEPSEEK_API_KEY="your-api-key-here"`
 2. **`key.txt` in current working directory**: `echo "your-api-key-here" > key.txt`
 3. **`key.txt` in the script directory**
+
+> `calc_priority.py` uses a local sentence-transformer model and does **not** require an API key.
 
 **NCBI API Key** (optional) — increases PubMed rate limits for `post_gwas_gene_agent.py`:
 
@@ -83,8 +88,6 @@ Obtain one at: https://www.ncbi.nlm.nih.gov/account/settings/
 ---
 
 ### post_gwas_gene_agent.py — TMPS Scoring & Literature Validation
-
-**Location**: `metagwas/` directory
 
 #### Description
 
@@ -119,7 +122,7 @@ pip install pandas requests openai tenacity
 | File | Argument | Description | Status |
 |------|----------|-------------|--------|
 | `*.gene.fastbat` or gene list | `--fastbat` | fastBAT gene-level results **or** plain gene list (lite mode) | **Ready** |
-| `stringtie_gene_314_TPM.txt` | `--expr` | Gene × sample TPM expression matrix (tab-delimited) | **Ready** |
+| `stringtie_gene_314_TPM.txt` | `--expr` | Gene x sample TPM expression matrix (tab-delimited) | **Ready** |
 | `TPM_class.txt` | `--expr-meta` | Sample grouping annotation (requires SampleName, Stage, Organ1) | **Ready** |
 | `ZH13.gene.iprscn.mod.txt` | `--ipr` | InterProScan domain annotations | **Ready** |
 | `ZH13.gene.Pfam.mod.txt` | `--pfam` | Pfam domain annotations | **Ready** |
@@ -199,11 +202,11 @@ python post_gwas_gene_agent.py \
 
 | Range | Interpretation |
 |-------|----------------|
-| 0.0 – 0.3 | Very unlikely to be causally related |
-| 0.3 – 0.5 | Plausible but insufficient evidence |
-| 0.5 – 0.7 | Moderate mechanistic candidate |
-| 0.7 – 0.9 | Strong mechanistic candidate |
-| 0.9 – 1.0 | Very strong mechanistic candidate |
+| 0.0 - 0.3 | Very unlikely to be causally related |
+| 0.3 - 0.5 | Plausible but insufficient evidence |
+| 0.5 - 0.7 | Moderate mechanistic candidate |
+| 0.7 - 0.9 | Strong mechanistic candidate |
+| 0.9 - 1.0 | Very strong mechanistic candidate |
 
 #### Literature Support Score Interpretation
 
@@ -217,9 +220,7 @@ python post_gwas_gene_agent.py \
 
 ---
 
-### 2_calc_priority.py — Semantic Gene Priority Calculation
-
-**Location**: `raw_mlma/` directory
+### calc_priority.py — Semantic Gene Priority Calculation
 
 #### Description
 
@@ -228,7 +229,7 @@ This script accepts a natural-language **trait concept query** (e.g., "plant arc
 **Priority Index formula**:
 
 ```
-PI = (W1 × -log10(P-value)) + (W2 × Semantic_Score × Expression_Gate)
+PI = (W1 x -log10(P-value)) + (W2 x Semantic_Score x Expression_Gate)
 ```
 
 - `W1 = 1.0`: GWAS statistical weight
@@ -255,9 +256,9 @@ pip install pandas numpy scikit-learn sentence-transformers tqdm
 #### Usage Examples
 
 ```bash
-python 2_calc_priority.py "plant architecture"
-python 2_calc_priority.py "seed oil content"
-python 2_calc_priority.py "auxin synthesis and auxin transport"
+python calc_priority.py "plant architecture"
+python calc_priority.py "seed oil content"
+python calc_priority.py "auxin synthesis and auxin transport"
 ```
 
 #### Output Files
@@ -290,13 +291,11 @@ python 2_calc_priority.py "auxin synthesis and auxin transport"
 
 #### Priority Index Interpretation
 
-A higher Priority Index indicates stronger association between the gene and the queried trait concept. Lowly-expressed genes (Max_TPM ≤ 1.0) are set to zero.
+A higher Priority Index indicates stronger association between the gene and the queried trait concept. Lowly-expressed genes (Max_TPM <= 1.0) are set to zero.
 
 ---
 
-### 1_gene_ai_analysis.py — AI-Powered Gene Functional Analysis
-
-**Location**: `raw_mlma/` directory
+### gene_ai_analysis.py — AI-Powered Gene Functional Analysis
 
 #### Description
 
@@ -321,19 +320,19 @@ pip install pandas openai
 **Pass gene IDs as command-line arguments:**
 
 ```bash
-python 1_gene_ai_analysis.py SoyZH13_20G103500 SoyZH13_16G122600
+python gene_ai_analysis.py SoyZH13_20G103500 SoyZH13_16G122600
 ```
 
 **Pipe from file:**
 
 ```bash
-cat top_genes.txt | python 1_gene_ai_analysis.py
+cat top_genes.txt | python gene_ai_analysis.py
 ```
 
 **Heredoc multi-line input:**
 
 ```bash
-python 1_gene_ai_analysis.py << EOF
+python gene_ai_analysis.py << EOF
 SoyZH13_20G103500
 SoyZH13_16G122600
 SoyZH13_09G072600
@@ -360,9 +359,9 @@ EOF
 | Issue | Solution |
 |-------|----------|
 | "API Key not found" | Set `DEEPSEEK_API_KEY` env variable or create `key.txt` |
-| "No traits found semantically related" | Lower `TRAIT_MATCH_THRESHOLD` in `2_calc_priority.py`, or try synonym queries |
+| "No traits found semantically related" | Lower `TRAIT_MATCH_THRESHOLD` in `calc_priority.py`, or try synonym queries |
 | Annotation file missing warnings | Annotation files are optional; missing ones do not affect core execution |
-| `2_calc_priority.py` slow on first run | `sentence-transformers` downloads the model (~400 MB) on first use |
+| `calc_priority.py` slow on first run | `sentence-transformers` downloads the model (~400 MB) on first use |
 | PubMed query timeout | Configure `NCBI_API_KEY`; or increase `--sleep-ncbi` |
 | LLM JSON parse failure | Built-in error handling fills defaults; subsequent genes are unaffected |
 
@@ -371,9 +370,19 @@ EOF
 ### Project Structure
 
 ```
-metagwas/
+Post-GWAS_gene_agent/
+│
+├── README.md                                # This document
+├── LICENSE                                  # MIT License
+├── requirements.txt                         # Python dependencies
+├── key.txt                                  # DeepSeek API Key (user-created)
+│
+├── Scripts:
 ├── post_gwas_gene_agent.py                  # TMPS scoring + literature validation
-├── key.txt                                  # DeepSeek API Key
+├── calc_priority.py                         # Semantic priority calculation
+├── gene_ai_analysis.py                      # AI gene functional analysis
+│
+├── Input data (pre-prepared):
 ├── stringtie_gene_314_TPM.txt               # TPM expression matrix
 ├── TPM_class.txt                            # Sample grouping annotation
 ├── ZH13.gene.iprscn.mod.txt                 # InterProScan annotations
@@ -382,17 +391,12 @@ metagwas/
 ├── ZH13.GN.txt                              # Gene name mapping
 ├── ZH13.GO.txt                              # GO annotations
 ├── ZH13.KEGG.txt                            # KEGG annotations
+├── Soybean_Gene_Embeddings_Full.npy         # Gene semantic embeddings
+├── Soybean_Gene_Semantic_Profiles_Full.csv  # Gene semantic profiles
+├── Gene_Phenotype_Associations_Readable_clean.csv  # GWAS associations
+├── *.gene.fastbat                           # fastBAT result files (user GWAS)
 │
-├── raw_mlma/
-│   ├── readme.md                            # This document
-│   ├── 2_calc_priority.py                   # Semantic priority calculation
-│   ├── 1_gene_ai_analysis.py                # AI gene functional analysis
-│   ├── Soybean_Gene_Embeddings_Full.npy     # Gene semantic embeddings
-│   ├── Soybean_Gene_Semantic_Profiles_Full.csv  # Gene semantic profiles
-│   ├── Gene_Phenotype_Associations_Readable_clean.csv  # GWAS associations
-│   └── *.mlma / *.fastbat                   # Raw GWAS result files
-│
-└── Output files (generated):
+└── Output files (auto-generated):
     ├── *_gene_tmps.tsv                      # TMPS ranking table
     ├── *_gene_cards.jsonl                   # Gene evidence cards
     ├── *_gene_lit_support.tsv               # Literature support summary
@@ -415,13 +419,20 @@ metagwas/
 
 ### 概述
 
-本工具包包含三个独立的 AI 驱动分析脚本，用于大豆 Post-GWAS 研究。每个脚本均可单独使用，也可根据分析需求组合使用：
+本工具包包含三个独立的 AI 驱动分析脚本，用于大豆 Post-GWAS 研究。每个脚本均可单独使用，也可根据分析需求组合使用。
+
+**仓库地址**：https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+
+```bash
+git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+cd Post-GWAS_gene_agent
+```
 
 | 脚本 | 用途 | 是否需要 API Key |
 |------|------|:----------------:|
 | `post_gwas_gene_agent.py` | 候选基因 TMPS 评分与 PubMed 文献验证 | 需要（DeepSeek） |
-| `2_calc_priority.py` | 语义性状匹配与多维度基因优先级排名 | 不需要 |
-| `1_gene_ai_analysis.py` | AI 生成学术出版级基因功能分析报告 | 需要（DeepSeek） |
+| `calc_priority.py` | 语义性状匹配与多维度基因优先级排名 | 不需要 |
+| `gene_ai_analysis.py` | AI 生成学术出版级基因功能分析报告 | 需要（DeepSeek） |
 
 ---
 
@@ -435,10 +446,10 @@ conda create -n gwas_agent python=3.9 -y
 conda activate gwas_agent
 
 # 安装全部依赖
-pip install pandas numpy requests openai tenacity scikit-learn sentence-transformers tqdm
+pip install -r requirements.txt
 ```
 
-或使用 `requirements.txt`：
+`requirements.txt`：
 
 ```txt
 pandas>=1.3.0
@@ -451,17 +462,15 @@ sentence-transformers>=2.2.0
 tqdm>=4.62.0
 ```
 
-```bash
-pip install -r requirements.txt
-```
-
 #### API Key 配置
 
-**DeepSeek API Key** — `post_gwas_gene_agent.py` 和 `1_gene_ai_analysis.py` 需要。按以下优先级加载：
+**DeepSeek API Key** — `post_gwas_gene_agent.py` 和 `gene_ai_analysis.py` 需要。按以下优先级加载：
 
 1. **环境变量**（推荐）：`export DEEPSEEK_API_KEY="your-api-key-here"`
 2. **当前工作目录**下的 `key.txt`：`echo "your-api-key-here" > key.txt`
 3. **脚本所在目录**下的 `key.txt`
+
+> `calc_priority.py` 使用本地 sentence-transformer 模型，**不需要** API Key。
 
 **NCBI API Key**（可选）— 用于提高 `post_gwas_gene_agent.py` 的 PubMed 查询频率限制：
 
@@ -474,8 +483,6 @@ export NCBI_API_KEY="your-ncbi-api-key"
 ---
 
 ### post_gwas_gene_agent.py — TMPS 评分与文献验证
-
-**位置**：`metagwas/` 目录
 
 #### 功能说明
 
@@ -510,7 +517,7 @@ pip install pandas requests openai tenacity
 | 文件 | 参数 | 说明 | 状态 |
 |------|------|------|------|
 | `*.gene.fastbat` 或基因列表文件 | `--fastbat` | fastBAT 基因统计结果**或**纯基因名列表（简洁模式） | **已准备好** |
-| `stringtie_gene_314_TPM.txt` | `--expr` | 基因 × 样本 TPM 表达矩阵（tab 分隔） | **已准备好** |
+| `stringtie_gene_314_TPM.txt` | `--expr` | 基因 x 样本 TPM 表达矩阵（tab 分隔） | **已准备好** |
 | `TPM_class.txt` | `--expr-meta` | 样本分组注释文件（需含 SampleName, Stage, Organ1 列） | **已准备好** |
 | `ZH13.gene.iprscn.mod.txt` | `--ipr` | InterProScan 功能域注释 | **已准备好** |
 | `ZH13.gene.Pfam.mod.txt` | `--pfam` | Pfam 蛋白域注释 | **已准备好** |
@@ -590,11 +597,11 @@ python post_gwas_gene_agent.py \
 
 | 分数范围 | 含义 |
 |----------|------|
-| 0.0 – 0.3 | 与性状因果关联的可能性很低 |
-| 0.3 – 0.5 | 有一定可能但证据不足 |
-| 0.5 – 0.7 | 中等机制候选基因 |
-| 0.7 – 0.9 | 强机制候选基因 |
-| 0.9 – 1.0 | 极强机制候选基因 |
+| 0.0 - 0.3 | 与性状因果关联的可能性很低 |
+| 0.3 - 0.5 | 有一定可能但证据不足 |
+| 0.5 - 0.7 | 中等机制候选基因 |
+| 0.7 - 0.9 | 强机制候选基因 |
+| 0.9 - 1.0 | 极强机制候选基因 |
 
 #### 文献支持度评分解读
 
@@ -608,9 +615,7 @@ python post_gwas_gene_agent.py \
 
 ---
 
-### 2_calc_priority.py — 语义基因优先级计算
-
-**位置**：`raw_mlma/` 目录
+### calc_priority.py — 语义基因优先级计算
 
 #### 功能说明
 
@@ -619,7 +624,7 @@ python post_gwas_gene_agent.py \
 **Priority Index 计算公式**：
 
 ```
-PI = (W1 × -log10(P-value)) + (W2 × Semantic_Score × Expression_Gate)
+PI = (W1 x -log10(P-value)) + (W2 x Semantic_Score x Expression_Gate)
 ```
 
 - `W1 = 1.0`：GWAS 统计权重
@@ -646,9 +651,9 @@ pip install pandas numpy scikit-learn sentence-transformers tqdm
 #### 运行示例
 
 ```bash
-python 2_calc_priority.py "plant architecture"
-python 2_calc_priority.py "seed oil content"
-python 2_calc_priority.py "auxin synthesis and auxin transport"
+python calc_priority.py "plant architecture"
+python calc_priority.py "seed oil content"
+python calc_priority.py "auxin synthesis and auxin transport"
 ```
 
 #### 输出文件
@@ -681,13 +686,11 @@ python 2_calc_priority.py "auxin synthesis and auxin transport"
 
 #### Priority Index 解读
 
-Priority Index 越高表示该基因与查询性状概念的关联越强。该分数综合了 GWAS 统计显著性和语义相关性，低表达基因（Max_TPM ≤ 1.0）直接归零。
+Priority Index 越高表示该基因与查询性状概念的关联越强。该分数综合了 GWAS 统计显著性和语义相关性，低表达基因（Max_TPM <= 1.0）直接归零。
 
 ---
 
-### 1_gene_ai_analysis.py — AI 驱动的基因功能深度分析
-
-**位置**：`raw_mlma/` 目录
+### gene_ai_analysis.py — AI 驱动的基因功能深度分析
 
 #### 功能说明
 
@@ -712,19 +715,19 @@ pip install pandas openai
 **方式 1：命令行参数直接传入基因 ID**
 
 ```bash
-python 1_gene_ai_analysis.py SoyZH13_20G103500 SoyZH13_16G122600
+python gene_ai_analysis.py SoyZH13_20G103500 SoyZH13_16G122600
 ```
 
 **方式 2：从文件管道输入**
 
 ```bash
-cat top_genes.txt | python 1_gene_ai_analysis.py
+cat top_genes.txt | python gene_ai_analysis.py
 ```
 
 **方式 3：Heredoc 多行输入**
 
 ```bash
-python 1_gene_ai_analysis.py << EOF
+python gene_ai_analysis.py << EOF
 SoyZH13_20G103500
 SoyZH13_16G122600
 SoyZH13_09G072600
@@ -751,9 +754,9 @@ EOF
 | 问题 | 解决方案 |
 |------|----------|
 | "API Key not found" | 设置 `DEEPSEEK_API_KEY` 环境变量或创建 `key.txt` 文件 |
-| "No traits found semantically related" | 降低 `2_calc_priority.py` 中的 `TRAIT_MATCH_THRESHOLD`，或尝试同义词 |
+| "No traits found semantically related" | 降低 `calc_priority.py` 中的 `TRAIT_MATCH_THRESHOLD`，或尝试同义词 |
 | 注释文件缺失的警告 | 注释文件为可选项，缺失不影响核心流程 |
-| `2_calc_priority.py` 首次运行很慢 | `sentence-transformers` 首次运行时需下载模型（约 400 MB） |
+| `calc_priority.py` 首次运行很慢 | `sentence-transformers` 首次运行时需下载模型（约 400 MB） |
 | PubMed 查询超时 | 配置 `NCBI_API_KEY` 提高请求频率限制；或增大 `--sleep-ncbi` |
 | LLM 返回 JSON 解析失败 | 脚本已内置容错处理，会用默认值填充，不影响后续基因的分析 |
 
@@ -762,9 +765,19 @@ EOF
 ### 项目结构
 
 ```
-metagwas/
+Post-GWAS_gene_agent/
+│
+├── README.md                                # 本文档
+├── LICENSE                                  # MIT 开源协议
+├── requirements.txt                         # Python 依赖包
+├── key.txt                                  # DeepSeek API Key（用户自行创建）
+│
+├── 脚本：
 ├── post_gwas_gene_agent.py                  # TMPS 评分 + 文献验证
-├── key.txt                                  # DeepSeek API Key
+├── calc_priority.py                         # 语义优先级计算
+├── gene_ai_analysis.py                      # AI 基因功能分析
+│
+├── 输入数据（已准备好）：
 ├── stringtie_gene_314_TPM.txt               # TPM 表达矩阵
 ├── TPM_class.txt                            # 样本分组注释
 ├── ZH13.gene.iprscn.mod.txt                 # InterProScan 注释
@@ -773,15 +786,10 @@ metagwas/
 ├── ZH13.GN.txt                              # 基因名称映射
 ├── ZH13.GO.txt                              # GO 注释
 ├── ZH13.KEGG.txt                            # KEGG 注释
-│
-├── raw_mlma/
-│   ├── README.md                            # 本文档
-│   ├── 2_calc_priority.py                   # 语义优先级计算
-│   ├── 1_gene_ai_analysis.py                # AI 基因功能分析
-│   ├── Soybean_Gene_Embeddings_Full.npy     # 基因语义嵌入
-│   ├── Soybean_Gene_Semantic_Profiles_Full.csv  # 基因语义 Profile
-│   ├── Gene_Phenotype_Associations_Readable_clean.csv  # GWAS 关联表
-│   └── *.mlma / *.fastbat                   # GWAS 原始结果文件
+├── Soybean_Gene_Embeddings_Full.npy         # 基因语义嵌入
+├── Soybean_Gene_Semantic_Profiles_Full.csv  # 基因语义 Profile
+├── Gene_Phenotype_Associations_Readable_clean.csv  # GWAS 关联表
+├── *.gene.fastbat                           # fastBAT 结果文件（用户 GWAS 数据）
 │
 └── 输出文件（自动生成）：
     ├── *_gene_tmps.tsv                      # TMPS 排名表
