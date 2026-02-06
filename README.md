@@ -87,7 +87,7 @@ Obtain one at: https://www.ncbi.nlm.nih.gov/account/settings/
 
 ---
 
-### post_gwas_gene_agent.py — TMPS Scoring & Literature Validation
+### 1. post_gwas_gene_agent.py — TMPS Scoring & Literature Validation
 
 #### Description
 
@@ -220,7 +220,7 @@ python post_gwas_gene_agent.py \
 
 ---
 
-### calc_priority.py — Semantic Gene Priority Calculation
+### 2. calc_priority.py — Semantic Gene Priority Calculation
 
 #### Description
 
@@ -295,7 +295,7 @@ A higher Priority Index indicates stronger association between the gene and the 
 
 ---
 
-### gene_ai_analysis.py — AI-Powered Gene Functional Analysis
+### 3. gene_ai_analysis.py — AI-Powered Gene Functional Analysis
 
 #### Description
 
@@ -482,7 +482,7 @@ export NCBI_API_KEY="your-ncbi-api-key"
 
 ---
 
-### post_gwas_gene_agent.py — TMPS 评分与文献验证
+### 1. post_gwas_gene_agent.py — TMPS 评分与文献验证
 
 #### 功能说明
 
@@ -615,7 +615,7 @@ python post_gwas_gene_agent.py \
 
 ---
 
-### calc_priority.py — 语义基因优先级计算
+### 2. calc_priority.py — 语义基因优先级计算
 
 #### 功能说明
 
@@ -690,7 +690,7 @@ Priority Index 越高表示该基因与查询性状概念的关联越强。该�
 
 ---
 
-### gene_ai_analysis.py — AI 驱动的基因功能深度分析
+### 3. gene_ai_analysis.py — AI 驱动的基因功能深度分析
 
 #### 功能说明
 
