@@ -97,7 +97,7 @@ This script evaluates candidate genes from GWAS studies by integrating multi-omi
 
 > **New Feature**: We have optimized this script to support a **Lite Mode** — input files containing **only gene names (one per line)**, with no p-values or other statistics required. The program automatically detects the input format:
 >
-> - **Full fastBAT format**: Standard columns (Gene, Chr, Start, End, No.SNPs, Pvalue, etc.); genes are filtered by p-value threshold.
+> - **Full fastBAT format**: Standard columns (Gene, Chr, Start, End, No.SNPs, Pvalue, etc.); genes are filtered by p-value threshold. See https://yanglab.westlake.edu.cn/software/gcta/#fastBAT for details.
 > - **Lite gene list format**: A single column of gene names; p-value filtering is skipped, and all genes proceed directly to TMPS scoring.
 >
 > This means you can extract gene names from any source and feed them directly into the analysis — no need to prepare full fastBAT output.
@@ -492,7 +492,7 @@ export NCBI_API_KEY="your-ncbi-api-key"
 
 > **新特性**：我们优化了本脚本，使其支持**简洁模式**——输入文件中**只包含基因名称（每行一个）**，无需 p 值等统计量也能运行完整分析流程。程序会自动检测输入格式：
 >
-> - **完整 fastBAT 格式**：包含 Gene, Chr, Start, End, No.SNPs, Pvalue 等标准列，按 p 值阈值过滤
+> - **完整 fastBAT 格式**：包含 Gene, Chr, Start, End, No.SNPs, Pvalue 等标准列，按 p 值阈值过滤，详情可以查看https://yanglab.westlake.edu.cn/software/gcta/#fastBAT
 > - **简洁基因列表格式**：仅一列基因名，跳过 p 值过滤，直接对所有基因进行 TMPS 评分
 >
 > 这意味着您可以从任何来源提取感兴趣的基因名称，直接交给脚本分析，无需准备完整的 fastBAT 输出。
