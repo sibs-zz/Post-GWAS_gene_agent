@@ -157,6 +157,24 @@ python post_gwas_gene_agent.py \
     --out-prefix lodging_genes
 ```
 
+**Analyze specific chromosome(s) only:**
+
+```bash
+# Only analyze genes on chromosome 1
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --chr 1 \
+    --out-prefix gwas_height_chr01
+
+# Analyze genes on chromosomes 1, 5, and 20
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --chr 1 5 20 \
+    --out-prefix gwas_height_chr1_5_20
+```
+
 **TMPS + literature validation:**
 
 ```bash
@@ -187,6 +205,7 @@ python post_gwas_gene_agent.py \
 |----------|-------------|---------|
 | `--fastbat` | fastBAT file or gene list | `2898zhugao.pheno.clean.mlma.ma.gene.fastbat` |
 | `--trait` | Trait description (**required**) | — |
+| `--chr` | Chromosome(s) to analyze. E.g. `--chr 1` for Chr01, `--chr 1 5 20` for multiple. Gene names are matched by zero-padded chromosome number (`1`→`_01G`, `20`→`_20G`). Default: all chromosomes | All |
 | `--pvalue-threshold` | P-value filter (auto-skipped in lite mode) | `0.1` |
 | `--top-n` | Max genes for LLM scoring | `200` |
 | `--out-prefix` | Output file prefix | `gwas_trait` |
@@ -552,6 +571,24 @@ python post_gwas_gene_agent.py \
     --out-prefix lodging_genes
 ```
 
+**指定染色体分析：**
+
+```bash
+# 只分析 1 号染色体上的基因
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --chr 1 \
+    --out-prefix gwas_height_chr01
+
+# 同时分析 1、5、20 号染色体上的基因
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --chr 1 5 20 \
+    --out-prefix gwas_height_chr1_5_20
+```
+
 **TMPS + 文献验证：**
 
 ```bash
@@ -582,6 +619,7 @@ python post_gwas_gene_agent.py \
 |------|------|--------|
 | `--fastbat` | fastBAT 文件或基因列表 | `2898zhugao.pheno.clean.mlma.ma.gene.fastbat` |
 | `--trait` | 性状描述（**必填**） | — |
+| `--chr` | 指定分析的染色体编号，可指定一个或多个。如 `--chr 1` 只分析 Chr01 上的基因，`--chr 1 5 20` 分析多条染色体。基因名按零填充染色体号匹配（`1`→`_01G`，`20`→`_20G`）。默认：分析全部染色体 | 全部 |
 | `--pvalue-threshold` | P 值过滤阈值（简洁模式下自动跳过） | `0.1` |
 | `--top-n` | 送入 LLM 评分的最大基因数 | `200` |
 | `--out-prefix` | 输出文件前缀 | `gwas_trait` |
