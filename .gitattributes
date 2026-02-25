@@ -1,0 +1,5 @@
+Gene_Phenotype_Associations_Readable_clean.csv filter=lfs diff=lfs merge=lfs -text
+Soybean_Gene_Embeddings_Full.npy filter=lfs diff=lfs merge=lfs -text
+Soybean_Gene_Semantic_Profiles_Full.csv filter=lfs diff=lfs merge=lfs -text
+stringtie_gene_314_TPM.txt filter=lfs diff=lfs merge=lfs -text
+ZH13.GO.txt filter=lfs diff=lfs merge=lfs -text
