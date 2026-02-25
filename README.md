@@ -1,4 +1,4 @@
-# SoySAGE: Soybean Post-GWAS Gene Prioritization & Functional Analysis Toolkit
+# SoySAGE (Soybean Semantic AI for Genetic Exploration): Soybean Post-GWAS Gene Prioritization & Functional Analysis Toolkit
 
 <div align="center">
 
