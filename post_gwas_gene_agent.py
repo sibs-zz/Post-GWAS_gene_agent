@@ -486,9 +486,9 @@ def build_evidence_for_gene(
 def call_deepseek_tmps(
     trait: str,
     gene_evidence: dict,
-    model: str = "deepseek-chat",
+    model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
-    max_tokens: int = 512,
+    max_tokens: int = 1800,
 ) -> dict:
     """Call DeepSeek LLM to score a gene (TMPS)"""
     if client is None:
@@ -517,6 +517,11 @@ Tasks:
    - 0.5 = plausible but uncertain
    - 1.0 = very strong mechanistic candidate
 
+IMPORTANT length limits:
+- Each comment field must be <= 120 words.
+- mechanistic_summary must be <= 150 words.
+- Return compact JSON only.
+
 Output strictly a JSON object with the following keys:
 {{
   "tmps_score": <float between 0 and 1>,
@@ -539,7 +544,7 @@ Do NOT include any extra commentary outside the JSON.
         max_tokens=max_tokens,
     )
     
-    content = response.choices[0].message.content.strip()
+    content = (response.choices[0].message.content or "").strip()
     
     if content.startswith("```"):
         content = content.strip("`")
@@ -553,7 +558,8 @@ Do NOT include any extra commentary outside the JSON.
             "statistical_support_comment": "JSON parse error.",
             "functional_relevance_comment": "",
             "expression_comment": "",
-            "mechanistic_summary": content[:500],
+            "mechanistic_summary": "LLM output could not be parsed as valid JSON.",
+            "raw_output": content[:1000],
         }
     
     return result
@@ -940,9 +946,9 @@ def call_deepseek_literature_agent(
     trait: Optional[str],
     gene_terms: List[str],
     papers: List[Dict[str, Any]],
-    model: str = "deepseek-chat",
+    model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
-    max_tokens: int = 700,
+    max_tokens: int = 1000,
 ) -> Dict[str, Any]:
     """Call DeepSeek LLM to summarize literature support"""
     if client is None:
@@ -1058,6 +1064,14 @@ def simple_go_counts(high_genes: List[str], go_map: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def clean_text_for_tsv(v: Any) -> str:
+    """Keep table fields single-line and tab-safe for TSV export."""
+    if v is None:
+        return ""
+    s = str(v)
+    return re.sub(r"[\r\n\t]+", " ", s).strip()
+
+
 # ================= Main Function =================
 
 def main():
@@ -1116,7 +1130,7 @@ def main():
                        help="ESearch retmax (larger values improve recall)")
     
     # LLM arguments
-    parser.add_argument("--model", default="deepseek-chat",
+    parser.add_argument("--model", default="deepseek-v4-pro",
                        help="DeepSeek model name")
     parser.add_argument("--temperature", type=float, default=0.1,
                        help="LLM sampling temperature")
@@ -1225,10 +1239,10 @@ def main():
             "TopSNP": row.get("TopSNP"),
             "TopSNP.Pvalue": row.get("TopSNP.Pvalue"),
             "TMPS": tmps,
-            "statistical_support_comment": llm_result.get("statistical_support_comment", ""),
-            "functional_relevance_comment": llm_result.get("functional_relevance_comment", ""),
-            "expression_comment": llm_result.get("expression_comment", ""),
-            "mechanistic_summary": llm_result.get("mechanistic_summary", ""),
+            "statistical_support_comment": clean_text_for_tsv(llm_result.get("statistical_support_comment", "")),
+            "functional_relevance_comment": clean_text_for_tsv(llm_result.get("functional_relevance_comment", "")),
+            "expression_comment": clean_text_for_tsv(llm_result.get("expression_comment", "")),
+            "mechanistic_summary": clean_text_for_tsv(llm_result.get("mechanistic_summary", "")),
         })
         
         llm_result["gene_id"] = gene_id
