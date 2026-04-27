@@ -29,7 +29,7 @@ A toolkit of three independent, AI-driven analysis scripts for soybean post-GWAS
 **Repository**: https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 
 ```bash
-git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+git lfs clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 cd Post-GWAS_gene_agent
 ```
 
@@ -443,7 +443,7 @@ Post-GWAS_gene_agent/
 **仓库地址**：https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 
 ```bash
-git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+git lfs clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 cd Post-GWAS_gene_agent
 ```
 
