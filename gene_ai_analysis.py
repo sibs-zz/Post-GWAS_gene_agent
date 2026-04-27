@@ -54,8 +54,9 @@ PROFILE_FILE = 'Soybean_Gene_Semantic_Profiles_Full.csv'
 GWAS_FILE = 'Gene_Phenotype_Associations_Readable_clean.csv'
 
 # 3. Model Settings
-MODEL_NAME = "deepseek-chat"
+MODEL_NAME = "deepseek-v4-pro"
 TEMPERATURE = 0.2  # Lower temperature for more rigorous, deterministic outputs
+MAX_TOKENS = 1800
 
 # ================= INITIALIZATION =================
 
@@ -157,10 +158,13 @@ def analyze_gene(gene_id):
                 {"role": "user", "content": user_prompt},
             ],
             stream=False,
-            temperature=TEMPERATURE 
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
         )
         
-        result = response.choices[0].message.content
+        result = (response.choices[0].message.content or "").strip()
+        if not result:
+            result = "LLM returned an empty response."
         
         # Output to console
         print("\n" + "="*20 + " AI ANALYSIS REPORT " + "="*20)
