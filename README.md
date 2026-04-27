@@ -28,9 +28,36 @@ A toolkit of three independent, AI-driven analysis scripts for soybean post-GWAS
 
 **Repository**: https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 
+### Clone the repository with Git LFS
+
 ```bash
-git lfs clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+# This repository contains large files managed by Git LFS.
+# Please make sure Git LFS is installed before cloning.
+# If Git LFS is not installed, large files may be downloaded only as pointer files,
+# rather than the actual data files.
+
+git lfs install
+
+# Recommended: skip automatic LFS download during cloning,
+# then download the large files explicitly with git lfs pull.
+# This approach is usually more stable for repositories containing large data files.
+
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+
 cd Post-GWAS_gene_agent
+
+# Download the actual large files tracked by Git LFS.
+git lfs pull
+```
+
+Optional check:
+
+```bash
+# If the command below prints any file names,
+# it means the corresponding large files were not downloaded correctly
+# and are still Git LFS pointer files.
+
+grep -R "version https://git-lfs.github.com/spec/v1" -n .
 ```
 
 | Script | Purpose | API Key Required |
@@ -442,9 +469,33 @@ Post-GWAS_gene_agent/
 
 **仓库地址**：https://github.com/sibs-zz/Post-GWAS_gene_agent.git
 
+### Clone the repository with Git LFS / 使用 Git LFS 克隆仓库
+
 ```bash
-git lfs clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+# 本仓库包含由 Git LFS 管理的大文件。
+# 克隆仓库前，请先确保已经安装 Git LFS。
+# 如果没有安装 Git LFS，大文件可能只会被下载成 pointer 指针文件，而不是真实文件。
+
+git lfs install
+
+# 推荐方式：克隆时先跳过 LFS 大文件的自动下载，
+# 等代码仓库克隆完成后，再使用 git lfs pull 手动下载大文件。
+# 对于包含较大数据文件的仓库，这种方式通常更加稳定。
+
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/sibs-zz/Post-GWAS_gene_agent.git
+
 cd Post-GWAS_gene_agent
+
+# 下载由 Git LFS 管理的真实大文件。
+git lfs pull
+```
+
+Optional check / 可选检查：
+
+```bash
+# 如果下面这条命令输出了文件名，说明对应的大文件还没有成功下载。
+
+grep -R "version https://git-lfs.github.com/spec/v1" -n .
 ```
 
 | 脚本 | 用途 | 是否需要 API Key |
