@@ -307,6 +307,20 @@ python calc_priority.py "seed oil content"
 python calc_priority.py "auxin synthesis and auxin transport"
 ```
 
+#### Note: Network Issues
+
+If you encounter network errors when downloading models or files from Hugging Face, for example:
+
+```text
+OSError: We couldn't connect to 'https://huggingface.co' to load the files
+```
+
+you can set the Hugging Face mirror endpoint before running the script:
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+```
+
 #### Output Files
 
 | Output File | Description |
@@ -737,12 +751,26 @@ pip install pandas numpy scikit-learn sentence-transformers tqdm
 | `Gene_Phenotype_Associations_Readable_clean.csv` | GWAS 基因-表型关联表（含 GeneID, Trait, P_Value, SNP_ID 列） | **已准备好** |
 | `stringtie_gene_314_TPM.txt` | 基因 TPM 表达矩阵 | **已准备好** |
 
-#### 运行示例
+#### 使用示例
 
 ```bash
 python calc_priority.py "plant architecture"
 python calc_priority.py "seed oil content"
 python calc_priority.py "auxin synthesis and auxin transport"
+```
+
+#### 提示：网络连接问题
+
+如果在从 Hugging Face 下载模型或文件时遇到网络错误，例如：
+
+```text
+OSError: We couldn't connect to 'https://huggingface.co' to load the files
+```
+
+可以在运行脚本前设置 Hugging Face 镜像地址：
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
 ```
 
 #### 输出文件
