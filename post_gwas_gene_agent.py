@@ -488,7 +488,7 @@ def call_deepseek_tmps(
     gene_evidence: dict,
     model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
-    max_tokens: int = 1800,
+    max_tokens: int = 4096,
 ) -> dict:
     """Call DeepSeek LLM to score a gene (TMPS)"""
     if client is None:
@@ -948,7 +948,7 @@ def call_deepseek_literature_agent(
     papers: List[Dict[str, Any]],
     model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
-    max_tokens: int = 1000,
+    max_tokens: int = 4096,
 ) -> Dict[str, Any]:
     """Call DeepSeek LLM to summarize literature support"""
     if client is None:
