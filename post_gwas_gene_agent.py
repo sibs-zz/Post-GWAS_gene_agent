@@ -6,27 +6,37 @@ Post-GWAS Gene Prioritization and Literature Validation Agent
 
 An integrated pipeline for gene prioritization scoring and literature validation:
 1. Filter candidate genes from fastBAT results
-2. Evaluate genes using LLM to compute TMPS (Trait Mechanistic Prioritization Score)
+2. Evaluate genes using LLM to compute TMPS (Trait Mechanistic Prioritization Score),
+   optionally informed by STRING high-confidence physical PPI (ZH13v2.1)
 3. Perform PubMed literature search and validation for high-TMPS genes
 
+Species-agnostic overrides (defaults match legacy soybean / ZH13 behaviour):
+  --species, --gene-id-pattern, --pubmed-organism-terms (see argparse help).
+
+TMPS ablation: --tmps-evidence-mode (default full); use distinct --out-prefix per mode.
+Output TSV includes column tmps_evidence_mode.
+
 Usage:
-    python post_gwas_gene_agent.py \
-        --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
-        --trait "Soybean plant height" \
-        --pvalue-threshold 0.1 \
-        --top-n 200 \
-        --run-literature \
+    python post_gwas_gene_agent_ppi.py \\
+        --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \\
+        --trait "Soybean plant height" \\
+        --pvalue-threshold 0.1 \\
+        --top-n 200 \\
+        --string-ppi STRING_ZH13v2.1_physical_links.tsv \\
+        --run-literature \\
         --out-prefix gwas_trait1
 
 Output files:
-- <out-prefix>_gene_tmps.tsv              # TMPS-ranked candidate gene table
-- <out-prefix>_gene_cards.jsonl           # Detailed gene cards (JSONL format)
+- <out-prefix>_gene_tmps.tsv              # TMPS-ranked table (includes ppi_network_comment)
+- <out-prefix>_gene_cards.jsonl           # Detailed gene cards (JSONL; TMPS JSON + ppi_evidence)
 - <out-prefix>_high_tmps_go_counts.tsv    # GO enrichment counts for high-TMPS genes
 - <out-prefix>_gene_lit_support.tsv       # Literature support summary (if --run-literature is used)
 - <out-prefix>_gene_lit_cards.jsonl       # Detailed literature cards (if --run-literature is used)
 """
 
 import os
+import copy
+import csv
 import json
 import re
 import time
@@ -34,7 +44,7 @@ import argparse
 import logging
 from pathlib import Path
 from collections import defaultdict, Counter
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Mapping
 
 import pandas as pd
 import requests
@@ -410,6 +420,249 @@ def parse_kegg_file(path: str) -> Dict[str, List[str]]:
     return kegg_map
 
 
+def _ppi_edge_quality(edge: Mapping[str, int]) -> Tuple[int, int, int, int, int]:
+    """Sort key: higher is better (negated for ascending sort)."""
+    return (
+        int(edge.get("combined_score", 0)),
+        int(edge.get("experimental", 0)) + int(edge.get("database", 0)),
+        int(edge.get("experimental", 0)),
+        int(edge.get("database", 0)),
+        int(edge.get("textmining", 0)),
+    )
+
+
+def load_string_ppi_adjacency(
+    path: Optional[str],
+    min_combined_score: int = 700,
+) -> Tuple[Dict[str, Dict[str, Dict[str, int]]], bool]:
+    """
+    Load STRING physical links; keep combined_score > min_combined_score.
+
+    Returns:
+        (adjacency, loaded_ok)
+        - adjacency: gene -> partner -> edge fields (undirected, best edge per pair)
+        - loaded_ok: False if the file was missing/unreadable or required columns absent;
+          True if the file was read successfully (adjacency may still be empty).
+    """
+    empty_adj: Dict[str, Dict[str, Dict[str, int]]] = {}
+
+    if not path or not str(path).strip():
+        logger.warning("STRING PPI path empty — skipping PPI integration.")
+        return empty_adj, False
+    p = Path(path)
+    if not p.is_file():
+        logger.warning(f"STRING PPI file not found ({path}) — skipping PPI integration.")
+        return empty_adj, False
+
+    best: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(dict)
+    n_rows = 0
+    n_kept = 0
+
+    try:
+        with open(p, newline="", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f, delimiter="\t")
+            req = {"gene1", "gene2", "combined_score"}
+            if not reader.fieldnames or not req.issubset(set(reader.fieldnames)):
+                logger.warning(
+                    "STRING PPI file missing required columns %s (found %s) — skipping PPI.",
+                    req,
+                    reader.fieldnames,
+                )
+                return empty_adj, False
+
+            for row in reader:
+                n_rows += 1
+                g1 = (row.get("gene1") or "").strip()
+                g2 = (row.get("gene2") or "").strip()
+                if not g1 or not g2 or g1 == g2:
+                    continue
+                try:
+                    cs = int(float(row.get("combined_score") or 0))
+                except (TypeError, ValueError):
+                    continue
+                if cs <= min_combined_score:
+                    continue
+
+                def _int_field(k: str) -> int:
+                    try:
+                        return int(float(row.get(k) or 0))
+                    except (TypeError, ValueError):
+                        return 0
+
+                edge = {
+                    "combined_score": cs,
+                    "experimental": _int_field("experimental"),
+                    "database": _int_field("database"),
+                    "textmining": _int_field("textmining"),
+                }
+
+                for a, b in ((g1, g2), (g2, g1)):
+                    cur = best[a].get(b)
+                    if cur is None or _ppi_edge_quality(edge) > _ppi_edge_quality(cur):
+                        best[a][b] = edge.copy()
+                n_kept += 1
+    except Exception as e:
+        logger.warning(f"Failed to read STRING PPI file ({path}): {e} — skipping PPI integration.")
+        return empty_adj, False
+
+    out = {g: dict(nei) for g, nei in best.items()}
+    logger.info(
+        "Loaded STRING PPI: %s rows read, %s high-confidence edges (combined_score>%s), %s genes with neighbors",
+        n_rows,
+        n_kept,
+        min_combined_score,
+        len(out),
+    )
+    if n_rows > 0 and n_kept == 0:
+        logger.warning(
+            "STRING PPI file contained rows but none passed combined_score>%s — PPI graph is empty.",
+            min_combined_score,
+        )
+    return out, True
+
+
+def _simplify_ann_list(
+    ann_dict: Dict[str, List[Dict[str, Any]]],
+    gene_id: str,
+    key_cols: List[str],
+    max_records: int = 5,
+) -> List[Dict[str, Any]]:
+    res: List[Dict[str, Any]] = []
+    for rec in ann_dict.get(gene_id, [])[:max_records]:
+        item: Dict[str, Any] = {}
+        for kc in key_cols:
+            if kc in rec:
+                item[kc] = rec[kc]
+        if item:
+            res.append(item)
+    return res
+
+
+def _partner_expression_highlights(
+    gene_id: str,
+    grouped_expr: pd.DataFrame,
+    top_expr_k: int = 5,
+    expr_threshold: float = 1.0,
+) -> Dict[str, Any]:
+    if gene_id not in grouped_expr.index:
+        return {
+            "top_groups_by_mean_TPM": [],
+            "max_TPM": None,
+            "mean_TPM_all_groups": None,
+        }
+    expr_series = grouped_expr.loc[gene_id]
+    top_expr = expr_series.sort_values(ascending=False).head(top_expr_k)
+    high_expr_groups = [
+        {"group": str(g), "mean_TPM": float(v)}
+        for g, v in top_expr.items()
+        if float(v) >= expr_threshold
+    ]
+    return {
+        "top_groups_by_mean_TPM": high_expr_groups,
+        "max_TPM": float(expr_series.max()),
+        "mean_TPM_all_groups": float(expr_series.mean()),
+    }
+
+
+def build_ppi_evidence_for_gene(
+    gene_id: str,
+    ppi_adj: Dict[str, Dict[str, Dict[str, int]]],
+    ppi_loaded: bool,
+    grouped_expr: pd.DataFrame,
+    ipr_ann: dict,
+    pfam_ann: dict,
+    uniprot_ann: dict,
+    gn_ann: dict,
+    go_map: dict,
+    kegg_map: dict,
+    min_combined_score: int,
+    top_k: int = 5,
+) -> Dict[str, Any]:
+    """Top high-confidence PPI partners with aggregated partner annotations."""
+    empty: Dict[str, Any] = {
+        "high_confidence_cutoff_combined_score": min_combined_score,
+        "total_neighbors_in_network": 0,
+        "top_partners": [],
+    }
+    if not ppi_loaded:
+        empty["note"] = "PPI file absent or unreadable; PPI integration skipped."
+        return empty
+
+    if not ppi_adj:
+        empty["note"] = (
+            "STRING PPI file was read but no edges passed the combined_score cutoff "
+            f"(>{min_combined_score})."
+        )
+        return empty
+
+    neighbors = ppi_adj.get(gene_id) or {}
+    if not neighbors:
+        empty["total_neighbors_in_network"] = 0
+        empty["note"] = "No high-confidence STRING physical interactions for this gene in the PPI graph."
+        return empty
+
+    ranked = sorted(
+        neighbors.items(),
+        key=lambda kv: _ppi_edge_quality(kv[1]),
+        reverse=True,
+    )[:top_k]
+
+    partners_out: List[Dict[str, Any]] = []
+    thin_ann: List[str] = []
+
+    for partner_id, edge in ranked:
+        desc = get_first_value(uniprot_ann, partner_id, "uniprot.description")
+        go_terms = (go_map.get(partner_id) or [])[:25]
+        ipr = _simplify_ann_list(ipr_ann, partner_id, ["ipr.ID", "ipr.description"], max_records=5)
+        pfam = _simplify_ann_list(pfam_ann, partner_id, ["pfam.ID", "pfam.description"], max_records=5)
+        kegg_ids = (kegg_map.get(partner_id) or [])[:15]
+        gnames = gn_ann.get(partner_id, [])[:3]
+        expr_h = _partner_expression_highlights(partner_id, grouped_expr)
+
+        if (
+            not desc
+            and not go_terms
+            and not ipr
+            and not pfam
+            and not kegg_ids
+            and not expr_h["top_groups_by_mean_TPM"]
+        ):
+            thin_ann.append(partner_id)
+
+        partners_out.append(
+            {
+                "partner_gene_id": partner_id,
+                "interaction": {
+                    "combined_score": int(edge.get("combined_score", 0)),
+                    "experimental": int(edge.get("experimental", 0)),
+                    "database": int(edge.get("database", 0)),
+                    "textmining": int(edge.get("textmining", 0)),
+                },
+                "partner_annotations": {
+                    "description": desc or None,
+                    "gene_name_records": gnames,
+                    "go_terms": go_terms,
+                    "ipr_domains": ipr,
+                    "pfam_domains": pfam,
+                    "kegg_pathway_ids": kegg_ids,
+                    "expression_highlights": expr_h,
+                },
+            }
+        )
+
+    if thin_ann:
+        logger.warning(
+            "PPI partner(s) with sparse annotations (no UniProt/GO/domains/KEGG/expression highlights): %s",
+            ", ".join(thin_ann[:10]) + (" ..." if len(thin_ann) > 10 else ""),
+        )
+
+    return {
+        "high_confidence_cutoff_combined_score": min_combined_score,
+        "total_neighbors_in_network": len(neighbors),
+        "top_partners": partners_out,
+    }
+
+
 # ================= Evidence Building Functions =================
 
 def build_evidence_for_gene(
@@ -424,6 +677,9 @@ def build_evidence_for_gene(
     kegg_map: dict,
     top_expr_k: int = 5,
     expr_threshold: float = 1.0,
+    ppi_adj: Optional[Dict[str, Dict[str, Dict[str, int]]]] = None,
+    ppi_loaded: bool = False,
+    ppi_min_combined_score: int = 700,
 ) -> dict:
     """Build structured evidence dictionary for a single gene"""
     evidence = {
@@ -476,8 +732,146 @@ def build_evidence_for_gene(
     evidence["gene_names"] = gn_ann.get(gene_id, [])
     evidence["go_terms"] = go_map.get(gene_id, [])
     evidence["kegg_ids"] = kegg_map.get(gene_id, [])
-    
+
+    evidence["ppi_evidence"] = build_ppi_evidence_for_gene(
+        gene_id=gene_id,
+        ppi_adj=ppi_adj or {},
+        ppi_loaded=ppi_loaded,
+        grouped_expr=grouped_expr,
+        ipr_ann=ipr_ann,
+        pfam_ann=pfam_ann,
+        uniprot_ann=uniprot_ann,
+        gn_ann=gn_ann,
+        go_map=go_map,
+        kegg_map=kegg_map,
+        min_combined_score=ppi_min_combined_score,
+        top_k=5,
+    )
+
     return evidence
+
+
+TMPS_EVIDENCE_MODES = (
+    "full",
+    "no_gwas",
+    "no_annotation",
+    "no_expression",
+    "no_ppi",
+    "gwas_only",
+    "annotation_only",
+    "expression_only",
+    "ppi_only",
+)
+
+_GWAS_EVIDENCE_KEYS = (
+    "chromosome",
+    "genomic_start",
+    "genomic_end",
+    "n_snps",
+    "fastbat_pvalue",
+    "top_snp",
+    "top_snp_pvalue",
+)
+
+_ANNOTATION_EVIDENCE_KEYS = (
+    "ipr_domains",
+    "pfam_domains",
+    "uniprot_hits",
+    "gene_names",
+    "go_terms",
+    "kegg_ids",
+)
+
+
+def _empty_expression_summary() -> Dict[str, Any]:
+    return {
+        "top_groups_by_mean_TPM": [],
+        "max_TPM": None,
+        "mean_TPM_all_groups": None,
+    }
+
+
+def _empty_ppi_evidence_ablated(min_combined_score: int) -> Dict[str, Any]:
+    return {
+        "high_confidence_cutoff_combined_score": min_combined_score,
+        "total_neighbors_in_network": 0,
+        "top_partners": [],
+        "note": "PPI withheld for TMPS evidence ablation (no_ppi mode).",
+    }
+
+
+def apply_tmps_evidence_ablation(
+    evidence: Dict[str, Any],
+    mode: str,
+    ppi_min_combined_score: int = 700,
+) -> Dict[str, Any]:
+    """
+    Return a deep copy of gene_evidence with fields removed or isolated per ablation mode.
+    Always sets key 'tmps_evidence_ablation' to the mode name (including 'full').
+    """
+    if mode not in TMPS_EVIDENCE_MODES:
+        raise ValueError(f"Unknown tmps evidence mode {mode!r}; expected one of {TMPS_EVIDENCE_MODES}")
+
+    e = copy.deepcopy(evidence)
+    e["tmps_evidence_ablation"] = mode
+
+    if mode == "full":
+        return e
+
+    if mode == "no_gwas":
+        for k in _GWAS_EVIDENCE_KEYS:
+            e.pop(k, None)
+        e["gwas_statistics_withheld"] = True
+        return e
+
+    if mode == "no_expression":
+        e["expression_summary"] = _empty_expression_summary()
+        return e
+
+    if mode == "no_annotation":
+        for k in _ANNOTATION_EVIDENCE_KEYS:
+            e[k] = []
+        return e
+
+    if mode == "no_ppi":
+        e["ppi_evidence"] = _empty_ppi_evidence_ablated(ppi_min_combined_score)
+        return e
+
+    if mode == "gwas_only":
+        out: Dict[str, Any] = {
+            "gene_id": e.get("gene_id"),
+            "tmps_evidence_ablation": mode,
+        }
+        for k in _GWAS_EVIDENCE_KEYS:
+            if k in e:
+                out[k] = e[k]
+        return out
+
+    if mode == "annotation_only":
+        out = {
+            "gene_id": e.get("gene_id"),
+            "tmps_evidence_ablation": mode,
+        }
+        for k in _ANNOTATION_EVIDENCE_KEYS:
+            out[k] = e.get(k, [])
+        return out
+
+    if mode == "expression_only":
+        return {
+            "gene_id": e.get("gene_id"),
+            "tmps_evidence_ablation": mode,
+            "expression_summary": e.get("expression_summary") or _empty_expression_summary(),
+        }
+
+    if mode == "ppi_only":
+        return {
+            "gene_id": e.get("gene_id"),
+            "tmps_evidence_ablation": mode,
+            "ppi_evidence": e.get("ppi_evidence")
+            or _empty_ppi_evidence_ablated(ppi_min_combined_score),
+        }
+
+    raise ValueError(f"Unhandled tmps evidence mode: {mode}")
 
 
 # ================= LLM Calling Functions =================
@@ -489,22 +883,44 @@ def call_deepseek_tmps(
     model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
     max_tokens: int = 4096,
+    species: str = "Glycine max",
 ) -> dict:
     """Call DeepSeek LLM to score a gene (TMPS)"""
     if client is None:
         raise EnvironmentError("DeepSeek API client not initialized")
     
     system_prompt = (
-        "You are an expert in quantitative genetics and plant functional genomics. "
-        "Given GWAS gene-level statistics, multi-tissue expression profiles, and "
-        "functional annotations for a soybean gene, you evaluate how plausible it is "
-        "that this gene is mechanistically involved in the target trait."
+        "You are an expert in quantitative genetics and functional genomics. "
+        "Given GWAS gene-level statistics, multi-tissue expression profiles, "
+        "functional annotations, and optionally STRING protein–protein interaction "
+        f"(PPI) context for a gene in {species}, you evaluate how plausible it is that "
+        "this gene is mechanistically involved in the target trait. "
+        "Treat PPI as optional supporting evidence only: absence of PPI must not "
+        "penalize the score. PPI can strengthen mechanistic plausibility only when "
+        "high-confidence partners (combined_score > 700 in the evidence package) "
+        "have annotations or roles plausibly related to the trait. Prefer interactions "
+        "with strong experimental and/or database channel scores over interactions "
+        "supported mainly by textmining."
     )
-    
+
+    abl = str(gene_evidence.get("tmps_evidence_ablation", "full"))
+    ablation_block = ""
+    if abl != "full":
+        ablation_block = f"""
+Controlled evidence ablation: tmps_evidence_ablation={abl!r}.
+Only the JSON fields shown below are available for this run; any absent GWAS, expression,
+annotation, or PPI block was intentionally withheld for sensitivity analysis.
+Score mechanistic plausibility from visible evidence only. In comment fields, briefly note
+when an evidence axis cannot be evaluated because it was withheld (e.g. no GWAS fields).
+"""
+
     user_prompt = f"""
 Target trait: {trait}
-
-Below is an evidence package for a candidate gene in soybean GWAS:
+Species / focal organism (for context): {species}
+{ablation_block}
+Below is an evidence package for a candidate gene from GWAS in {species}.
+The field "ppi_evidence" lists up to five high-confidence STRING physical interaction
+partners (combined_score > 700) with partner-side annotations when available.
 
 {json.dumps(gene_evidence, ensure_ascii=False, indent=2)}
 
@@ -512,22 +928,30 @@ Tasks:
 1. Evaluate the statistical support (gene-level P-values, top SNP, locus context).
 2. Evaluate functional relevance (domains, Gene Ontology, KEGG pathways, homology).
 3. Evaluate expression patterns (tissues / stages where the gene is expressed).
-4. Provide an overall Trait Mechanistic Prioritization Score (TMPS) between 0 and 1:
+4. Evaluate PPI / network support using "ppi_evidence" ONLY as optional context:
+   - Do NOT lower TMPS solely because PPI is missing or empty.
+   - If top partners and their annotations align with the trait biology, note how
+     that increases mechanistic plausibility; otherwise state that PPI is neutral
+     or non-informative for this trait.
+   - When comparing interactions, treat stronger experimental/database evidence as
+     more reliable than textmining-only support.
+5. Provide an overall Trait Mechanistic Prioritization Score (TMPS) between 0 and 1:
    - 0.0 = very unlikely to be causally related
    - 0.5 = plausible but uncertain
    - 1.0 = very strong mechanistic candidate
 
 IMPORTANT length limits:
-- Each comment field must be <= 120 words.
+- Each *_comment field must be <= 120 words.
 - mechanistic_summary must be <= 150 words.
 - Return compact JSON only.
 
-Output strictly a JSON object with the following keys:
+Output strictly a JSON object with the following keys (in this order):
 {{
   "tmps_score": <float between 0 and 1>,
   "statistical_support_comment": "<short paragraph>",
   "functional_relevance_comment": "<short paragraph>",
   "expression_comment": "<short paragraph>",
+  "ppi_network_comment": "<short paragraph on optional PPI/network support>",
   "mechanistic_summary": "<2-4 sentence integrated summary>"
 }}
 Do NOT include any extra commentary outside the JSON.
@@ -558,10 +982,14 @@ Do NOT include any extra commentary outside the JSON.
             "statistical_support_comment": "JSON parse error.",
             "functional_relevance_comment": "",
             "expression_comment": "",
+            "ppi_network_comment": "",
             "mechanistic_summary": "LLM output could not be parsed as valid JSON.",
             "raw_output": content[:1000],
         }
-    
+
+    if "ppi_network_comment" not in result or result.get("ppi_network_comment") is None:
+        result["ppi_network_comment"] = ""
+
     return result
 
 
@@ -689,37 +1117,106 @@ def generate_pubmed_terms(
     return uniq[:max_terms]
 
 
+# Default PubMed organism OR-terms (soybean + common plant models). Superseded when
+# --pubmed-organism-terms points to a non-empty file.
+DEFAULT_PUBMED_ORGANISM_TERMS: Tuple[str, ...] = (
+    '"Glycine max"[MeSH Terms]',
+    "soybean[All Fields]",
+    '"Arabidopsis thaliana"[MeSH Terms]',
+    '"Oryza sativa"[MeSH Terms]',
+    '"Zea mays"[MeSH Terms]',
+    '"Triticum aestivum"[MeSH Terms]',
+)
+
+
+def load_pubmed_organism_terms(path: Optional[str]) -> List[str]:
+    """
+    Load PubMed OR-clause tokens (one per line), e.g. '"Homo sapiens"[MeSH Terms]'.
+    Lines starting with # and blank lines are ignored.
+    If path is omitted or the file is empty/unreadable, returns DEFAULT_PUBMED_ORGANISM_TERMS.
+    """
+    if not path or not str(path).strip():
+        return list(DEFAULT_PUBMED_ORGANISM_TERMS)
+    p = Path(str(path).strip())
+    if not p.is_file():
+        logger.warning(
+            "PubMed organism terms file not found (%s); using built-in default list.",
+            path,
+        )
+        return list(DEFAULT_PUBMED_ORGANISM_TERMS)
+    out: List[str] = []
+    try:
+        for raw in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            out.append(line)
+    except OSError as e:
+        logger.warning(
+            "Could not read PubMed organism terms file (%s): %s; using defaults.",
+            path,
+            e,
+        )
+        return list(DEFAULT_PUBMED_ORGANISM_TERMS)
+    if not out:
+        logger.warning(
+            "No usable lines in PubMed organism terms file (%s); using defaults.",
+            path,
+        )
+        return list(DEFAULT_PUBMED_ORGANISM_TERMS)
+    return out
+
+
+def compile_gene_id_allfields_regex(pattern: str) -> re.Pattern:
+    """
+    Regex applied to each PubMed query term: if it matches, the term is searched in [All Fields].
+    Default preserves legacy SoyZH13_ behaviour.
+    """
+    pat = (pattern or "").strip() or r"^SoyZH13_"
+    try:
+        return re.compile(pat)
+    except re.error as e:
+        logger.warning(
+            "Invalid --gene-id-pattern %r (%s); falling back to ^SoyZH13_",
+            pat,
+            e,
+        )
+        return re.compile(r"^SoyZH13_")
+
+
+def pubmed_term_use_all_fields(term: str, gene_long_re: re.Pattern, max_tiab_len: int = 30) -> bool:
+    """Prefer [All Fields] for long or regex-matched gene / accession tokens."""
+    return bool(gene_long_re.search(term)) or len(term) > max_tiab_len
+
+
 def build_pubmed_query(
     gene_terms: List[str],
     trait: Optional[str] = None,
     require_organism: bool = True,
+    organism_pubmed_terms: Optional[List[str]] = None,
+    gene_long_re: Optional[re.Pattern] = None,
 ) -> str:
     """Build PubMed query"""
+    gene_long_re = gene_long_re or compile_gene_id_allfields_regex(r"^SoyZH13_")
+    org_terms = organism_pubmed_terms if organism_pubmed_terms is not None else list(
+        DEFAULT_PUBMED_ORGANISM_TERMS
+    )
+
     tiab_terms = []
     allf_terms = []
-    
+
     for t in gene_terms:
-        if t.startswith("SoyZH13_") or len(t) > 30:
+        if pubmed_term_use_all_fields(t, gene_long_re):
             allf_terms.append(f'"{t}"[All Fields]')
         else:
             tiab_terms.append(f'"{t}"[Title/Abstract]')
-    
+
     if not tiab_terms and allf_terms:
         tiab_terms = allf_terms[:3]
-    
+
     gene_block = "(" + " OR ".join(tiab_terms + allf_terms[:2]) + ")"
-    
-    # Organism block: soybean + key model/crop species (use MeSH where available,
-    # one common name each; keep compact to avoid oversized queries)
-    organism_mesh_allf = [
-        # Soybean (primary)
-        '"Glycine max"[MeSH Terms]', 'soybean[All Fields]',
-        # Model plants
-        '"Arabidopsis thaliana"[MeSH Terms]', '"Oryza sativa"[MeSH Terms]',
-        # Major cereals
-        '"Zea mays"[MeSH Terms]', '"Triticum aestivum"[MeSH Terms]'
-    ]
-    organism_block = "(" + " OR ".join(organism_mesh_allf) + ")"
+
+    organism_block = "(" + " OR ".join(org_terms) + ")"
     
     # Trait block: user trait + representative terms across major trait categories.
     # Kept to ~30 terms to avoid overly long queries; each term covers a category.
@@ -875,11 +1372,17 @@ def pubmed_esummary(pmids: List[str]) -> List[Dict[str, Any]]:
     return out
 
 
-def filter_by_gene_terms_in_tiab(papers: List[Dict[str, Any]], gene_terms: List[str]) -> List[Dict[str, Any]]:
+def filter_by_gene_terms_in_tiab(
+    papers: List[Dict[str, Any]],
+    gene_terms: List[str],
+    gene_long_re: Optional[re.Pattern] = None,
+) -> List[Dict[str, Any]]:
     """Keep only papers whose title/abstract contains at least one gene term"""
+    gene_long_re = gene_long_re or compile_gene_id_allfields_regex(r"^SoyZH13_")
     keep_terms = [
-        t for t in gene_terms
-        if (not t.startswith("SoyZH13_")) and (len(t) <= 30) and (t.lower() not in STOPWORDS)
+        t
+        for t in gene_terms
+        if (not pubmed_term_use_all_fields(t, gene_long_re)) and (t.lower() not in STOPWORDS)
     ]
     if not keep_terms:
         return papers
@@ -898,6 +1401,8 @@ def pubmed_search_with_fallback(
     trait: Optional[str],
     max_keep: int,
     esearch_retmax: int = 80,
+    organism_pubmed_terms: Optional[List[str]] = None,
+    gene_long_re: Optional[re.Pattern] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Two-stage PubMed retrieval with fallback.
     
@@ -922,6 +1427,8 @@ def pubmed_search_with_fallback(
             gene_terms=gene_terms,
             trait=q_trait,
             require_organism=spec["require_organism"],
+            organism_pubmed_terms=organism_pubmed_terms,
+            gene_long_re=gene_long_re,
         )
         
         pmids = pubmed_esearch(term, retmax=esearch_retmax, sort="relevance")
@@ -933,11 +1440,17 @@ def pubmed_search_with_fallback(
         for p in papers:
             p["abstract"] = abstracts.get(p["pmid"], "")
         
-        filtered = filter_by_gene_terms_in_tiab(papers, gene_terms)
+        filtered = filter_by_gene_terms_in_tiab(papers, gene_terms, gene_long_re=gene_long_re)
         if filtered:
             return term, filtered[:max_keep]
-    
-    return build_pubmed_query(gene_terms=gene_terms, trait=trait, require_organism=True), []
+
+    return build_pubmed_query(
+        gene_terms=gene_terms,
+        trait=trait,
+        require_organism=True,
+        organism_pubmed_terms=organism_pubmed_terms,
+        gene_long_re=gene_long_re,
+    ), []
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -949,13 +1462,14 @@ def call_deepseek_literature_agent(
     model: str = "deepseek-v4-pro",
     temperature: float = 0.1,
     max_tokens: int = 4096,
+    species: str = "Glycine max",
 ) -> Dict[str, Any]:
     """Call DeepSeek LLM to summarize literature support"""
     if client is None:
         raise EnvironmentError("DeepSeek API client not initialized")
     
-    trait_str = trait or "unspecified plant trait"
-    
+    trait_str = trait or f"unspecified trait ({species})"
+
     paper_lines = []
     for i, p in enumerate(papers, start=1):
         abs_short = (p.get("abstract", "") or "").strip()
@@ -971,14 +1485,16 @@ def call_deepseek_literature_agent(
     terms_text = ", ".join(gene_terms) if gene_terms else gene_id
     
     system_prompt = (
-        "You are an expert in plant molecular genetics and functional genomics. "
+        "You are an expert in molecular genetics and functional genomics. "
         "Given PubMed literature and a candidate gene, you evaluate whether the literature "
-        "supports the gene as functionally important for a given plant trait or related biological processes. "
+        f"supports the gene as functionally important for a trait or related biological processes "
+        f"in {species} (or closely relevant model systems). "
         "You MUST output a single valid JSON object, with no extra commentary."
     )
-    
+
     user_prompt = f"""
 Target gene: {gene_id}
+Species / focal organism: {species}
 Candidate trait: {trait_str}
 PubMed query terms used for this gene: {terms_text}
 
@@ -988,8 +1504,8 @@ Below are PubMed hits (title and abstract snippets) retrieved for this gene:
 
 Task:
 1. Judge whether the literature provides functional support that this gene (or homologs implied by the query terms)
-   is involved in biological processes plausibly linked to the target trait (development, hormone pathways,
-   architecture, yield, seed metabolism, stress responses, etc.).
+   is involved in biological processes plausibly linked to the target trait (e.g. development, metabolism,
+   stress responses, morphology, physiology — as appropriate to the trait description).
 2. Assign support_score between 0 and 1:
    0   = no relevant evidence,
    0.2 = weak or indirect evidence,
@@ -1098,16 +1614,43 @@ def main():
                        help="Path to GO annotation file")
     parser.add_argument("--kegg", default="ZH13.KEGG.txt",
                        help="Path to KEGG annotation file")
-    
+    parser.add_argument(
+        "--string-ppi",
+        default="STRING_ZH13v2.1_physical_links.tsv",
+        help="STRING physical PPI (ZH13v2.1 gene IDs). If the file is missing, PPI is skipped.",
+    )
+    parser.add_argument(
+        "--ppi-min-combined-score",
+        type=int,
+        default=700,
+        help="Minimum STRING combined_score for edges included in TMPS PPI evidence.",
+    )
+
+    parser.add_argument(
+        "--species",
+        default="Glycine max",
+        help="Species / focal organism label for LLM prompts (e.g. Homo sapiens, Mus musculus).",
+    )
+    parser.add_argument(
+        "--gene-id-pattern",
+        default=r"^SoyZH13_",
+        help="Regex: PubMed query terms matching this pattern use [All Fields] instead of [Title/Abstract].",
+    )
+    parser.add_argument(
+        "--pubmed-organism-terms",
+        default=None,
+        help="Optional text file: one PubMed organism sub-query per line (OR-joined), "
+        "e.g. \\\"Homo sapiens\\\"[MeSH Terms]. Lines starting with # are ignored. "
+        "If omitted, a built-in soybean+plant default list is used.",
+    )
+
     # Core arguments
     parser.add_argument("--trait", required=True,
-                       help='Trait description, e.g. "soybean plant height"')
+                       help='Trait description (include species context if needed), e.g. "soybean plant height"')
     parser.add_argument("--chr", type=int, nargs="+", default=None,
-                       help="Chromosome(s) to analyze. E.g. --chr 1 for Chr01 genes, "
-                            "--chr 1 5 20 for multiple chromosomes. "
-                            "Gene names like SoyZH13_01G... are matched by the zero-padded "
-                            "chromosome number (1->01G, 20->20G). "
-                            "Default: analyze all chromosomes.")
+                       help="Chromosome(s) to analyze. E.g. --chr 1 5 20. "
+                            "Default filter matches zero-padded _01G, _05G, _20G in gene IDs "
+                            "(legacy SoyZH13-style). For other naming schemes, avoid --chr or pre-filter the fastBAT file.")
     parser.add_argument("--pvalue-threshold", type=float, default=0.1,
                        help="fastBAT gene-level P-value threshold for pre-filtering")
     parser.add_argument("--top-n", type=int, default=200,
@@ -1118,6 +1661,13 @@ def main():
     # TMPS scoring arguments
     parser.add_argument("--tmps-high-threshold", type=float, default=0.8,
                        help="TMPS threshold for high-confidence genes")
+    parser.add_argument(
+        "--tmps-evidence-mode",
+        choices=list(TMPS_EVIDENCE_MODES),
+        default="full",
+        help="Which evidence subsets are sent to the TMPS LLM (ablation / sensitivity). "
+        "Use distinct --out-prefix per mode when comparing runs.",
+    )
     
     # Literature validation arguments
     parser.add_argument("--run-literature", action="store_true",
@@ -1144,6 +1694,15 @@ def main():
                        help="Delay between LLM calls (seconds)")
     
     args = parser.parse_args()
+
+    pubmed_organism_terms = load_pubmed_organism_terms(args.pubmed_organism_terms)
+    gene_id_pubmed_re = compile_gene_id_allfields_regex(args.gene_id_pattern)
+    logger.info(
+        "Species label (LLM): %s | PubMed organism OR-terms: %d | gene-id-pattern: %r",
+        args.species,
+        len(pubmed_organism_terms),
+        args.gene_id_pattern,
+    )
     
     # Validate API key
     if client is None:
@@ -1153,6 +1712,7 @@ def main():
     
     logger.info("=" * 60)
     logger.info("Starting Post-GWAS Gene Prioritization")
+    logger.info("TMPS evidence mode (ablation): %s", args.tmps_evidence_mode)
     logger.info("=" * 60)
     
     # ========== Stage 1: Load Data ==========
@@ -1169,6 +1729,11 @@ def main():
     gn_ann = robust_load_annotation_table(args.gn)
     go_map = parse_go_file(args.go)
     kegg_map = parse_kegg_file(args.kegg)
+
+    ppi_adj, ppi_loaded = load_string_ppi_adjacency(
+        args.string_ppi,
+        min_combined_score=args.ppi_min_combined_score,
+    )
     
     # ========== Stage 2: Filter Genes ==========
     if is_simple_gene_list:
@@ -1218,6 +1783,14 @@ def main():
             gn_ann=gn_ann,
             go_map=go_map,
             kegg_map=kegg_map,
+            ppi_adj=ppi_adj,
+            ppi_loaded=ppi_loaded,
+            ppi_min_combined_score=args.ppi_min_combined_score,
+        )
+        evidence = apply_tmps_evidence_ablation(
+            evidence,
+            args.tmps_evidence_mode,
+            ppi_min_combined_score=args.ppi_min_combined_score,
         )
         
         llm_result = call_deepseek_tmps(
@@ -1225,10 +1798,12 @@ def main():
             gene_evidence=evidence,
             model=args.model,
             temperature=args.temperature,
+            species=args.species,
         )
-        
+
         tmps = float(llm_result.get("tmps_score", 0.0))
-        
+        ppi_net_comment = clean_text_for_tsv(llm_result.get("ppi_network_comment", ""))
+
         results.append({
             "Gene": gene_id,
             "Chr": row.get("Chr"),
@@ -1239,13 +1814,18 @@ def main():
             "TopSNP": row.get("TopSNP"),
             "TopSNP.Pvalue": row.get("TopSNP.Pvalue"),
             "TMPS": tmps,
+            "tmps_evidence_mode": args.tmps_evidence_mode,
             "statistical_support_comment": clean_text_for_tsv(llm_result.get("statistical_support_comment", "")),
             "functional_relevance_comment": clean_text_for_tsv(llm_result.get("functional_relevance_comment", "")),
             "expression_comment": clean_text_for_tsv(llm_result.get("expression_comment", "")),
+            "ppi_network_comment": ppi_net_comment,
             "mechanistic_summary": clean_text_for_tsv(llm_result.get("mechanistic_summary", "")),
         })
-        
+
         llm_result["gene_id"] = gene_id
+        llm_result["tmps_evidence_mode"] = args.tmps_evidence_mode
+        llm_result["ppi_network_comment"] = llm_result.get("ppi_network_comment") or ""
+        llm_result["ppi_evidence"] = evidence.get("ppi_evidence", {})
         llm_result["chr"] = int(row.get("Chr", -1))
         llm_result["start"] = int(row.get("Start", -1))
         llm_result["end"] = int(row.get("End", -1))
@@ -1323,6 +1903,8 @@ def main():
                         trait=args.trait,
                         max_keep=args.max_papers_per_gene,
                         esearch_retmax=args.esearch_retmax,
+                        organism_pubmed_terms=pubmed_organism_terms,
+                        gene_long_re=gene_id_pubmed_re,
                     )
                 except Exception as e:
                     logger.error(f"PubMed search error for {gene_id}: {e}")
@@ -1341,6 +1923,7 @@ def main():
                         papers=papers,
                         model=args.model,
                         temperature=args.temperature,
+                        species=args.species,
                     )
                 except Exception as e:
                     logger.error(f"LLM error for {gene_id}: {e}")

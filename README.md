@@ -62,7 +62,7 @@ grep -R "version https://git-lfs.github.com/spec/v1" -n .
 
 | Script | Purpose | API Key Required |
 |--------|---------|:----------------:|
-| `post_gwas_gene_agent.py` | TMPS scoring & PubMed literature validation for candidate genes | DeepSeek |
+| `post_gwas_gene_agent.py` | TMPS scoring (optional STRING PPI, ablation modes) & PubMed literature validation for candidate genes | DeepSeek |
 | `calc_priority.py` | Semantic trait matching & multi-dimensional gene priority ranking | No |
 | `gene_ai_analysis.py` | AI-generated publication-grade functional analysis reports | DeepSeek |
 
@@ -118,7 +118,11 @@ Obtain one at: https://www.ncbi.nlm.nih.gov/account/settings/
 
 #### Description
 
-This script evaluates candidate genes from GWAS studies by integrating multi-omics evidence — GWAS statistics, multi-tissue expression profiles, and functional annotations (InterPro, Pfam, UniProt, GO, KEGG). It calls a Large Language Model (DeepSeek) to compute a **TMPS (Trait Mechanistic Prioritization Score)** for each gene, and optionally performs PubMed literature search to validate high-scoring candidates.
+This script evaluates candidate genes from GWAS studies by integrating multi-omics evidence — GWAS statistics, multi-tissue expression profiles, functional annotations (InterPro, Pfam, UniProt, GO, KEGG), and **optionally STRING high-confidence physical protein–protein interactions (PPI)** mapped to the same gene IDs as your annotations. It calls a Large Language Model (DeepSeek) to compute a **TMPS (Trait Mechanistic Prioritization Score)** for each gene (including an optional **`ppi_network_comment`** when PPI context is available), and optionally performs PubMed literature search to validate high-scoring candidates.
+
+**Cross-species / PubMed tuning:** You can set **`--species`**, **`--gene-id-pattern`** (regex controlling PubMed `[All Fields]` vs `[Title/Abstract]` for long or internal IDs), and **`--pubmed-organism-terms`** (one PubMed organism sub-query per line) without changing core logic.
+
+**TMPS sensitivity (ablation):** **`--tmps-evidence-mode`** rewrites only the JSON evidence package sent to the TMPS LLM (e.g. `no_gwas`, `no_annotation`, `no_expression`, `no_ppi`, or singleton modes such as `gwas_only`). Literature mode (`--run-literature`) still uses full annotations for PubMed term building unless you change the code separately.
 
 #### Lite Mode (Gene-List-Only)
 
@@ -157,9 +161,10 @@ pip install pandas requests openai tenacity
 | `ZH13.GN.txt` | `--gn` | Gene name mapping table | **Ready** |
 | `ZH13.GO.txt` | `--go` | Gene Ontology annotations | **Ready** |
 | `ZH13.KEGG.txt` | `--kegg` | KEGG pathway annotations | **Ready** |
+| `STRING_*_physical_links.tsv` (e.g. ZH13v2.1) | `--string-ppi` | STRING physical links with `gene1`, `gene2`, `combined_score`, … (same gene ID scheme as annotations) | **Optional** |
 | `key.txt` | — | DeepSeek API Key (or set env variable) | **Ready** |
 
-> Annotation files (ipr, pfam, uniprot, gn, go, kegg) are optional. Missing files produce warnings but do not halt execution.
+> Annotation files (ipr, pfam, uniprot, gn, go, kegg) are optional. Missing files produce warnings but do not halt execution. If `--string-ppi` is missing or unreadable, PPI integration is skipped with a warning.
 
 #### Usage Examples
 
@@ -202,6 +207,19 @@ python post_gwas_gene_agent.py \
     --out-prefix gwas_height_chr1_5_20
 ```
 
+**TMPS + STRING PPI + ablation example (use distinct `--out-prefix` per mode):**
+
+```bash
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --pvalue-threshold 0.1 \
+    --top-n 30 \
+    --string-ppi STRING_ZH13v2.1_physical_links.tsv \
+    --tmps-evidence-mode no_ppi \
+    --out-prefix gwas_height_no_ppi
+```
+
 **TMPS + literature validation:**
 
 ```bash
@@ -220,8 +238,8 @@ python post_gwas_gene_agent.py \
 
 | Output File | Description |
 |-------------|-------------|
-| `{prefix}_gene_tmps.tsv` | TMPS-ranked candidate gene table (with scores and LLM comments) |
-| `{prefix}_gene_cards.jsonl` | Detailed gene evidence cards (JSON Lines) |
+| `{prefix}_gene_tmps.tsv` | TMPS-ranked candidate gene table (scores, `statistical_support_comment`, `functional_relevance_comment`, `expression_comment`, **`ppi_network_comment`**, `mechanistic_summary`, **`tmps_evidence_mode`**) |
+| `{prefix}_gene_cards.jsonl` | Detailed gene evidence cards (JSON Lines; includes LLM fields, optional **`ppi_evidence`** snapshot, **`tmps_evidence_mode`**) |
 | `{prefix}_high_tmps_go_counts.tsv` | GO term enrichment counts for high-TMPS genes |
 | `{prefix}_gene_lit_support.tsv` | Literature support summary (requires `--run-literature`) |
 | `{prefix}_gene_lit_cards.jsonl` | Detailed literature cards (requires `--run-literature`) |
@@ -243,6 +261,38 @@ python post_gwas_gene_agent.py \
 | `--model` | DeepSeek model name | `deepseek-chat` |
 | `--temperature` | LLM sampling temperature | `0.1` |
 | `--sleep` | Delay between LLM requests (seconds) | `0.5` |
+| `--expr` | TPM expression matrix path | `stringtie_gene_314_TPM.txt` |
+| `--expr-meta` | Sample metadata for expression (`SampleName`, `Stage`, `Organ1`, …) | `TPM_class.txt` |
+| `--ipr` / `--pfam` / `--uniprot` / `--gn` / `--go` / `--kegg` | Annotation table paths | ZH13 defaults |
+| `--string-ppi` | STRING physical PPI TSV (gene IDs aligned to your build) | *(path in extended build; file optional)* |
+| `--ppi-min-combined-score` | Minimum STRING `combined_score` to load into TMPS PPI graph | `700` |
+| `--species` | Species label inserted into TMPS / literature LLM prompts | `Glycine max` |
+| `--gene-id-pattern` | Regex: matching PubMed query terms use `[All Fields]` | `^SoyZH13_` |
+| `--pubmed-organism-terms` | Text file: one PubMed organism OR-term per line (`#` comments OK); if omitted, built-in plant/soybean list | — |
+| `--tmps-evidence-mode` | TMPS input ablation: `full`, `no_gwas`, `no_annotation`, `no_expression`, `no_ppi`, `gwas_only`, `annotation_only`, `expression_only`, `ppi_only` | `full` |
+| `--esearch-retmax` | PubMed ESearch `retmax` when `--run-literature` | `80` |
+| `--sleep-ncbi` | Delay between NCBI calls (seconds) | `0.34` |
+| `--sleep-llm` | Delay between LLM calls in literature stage (seconds) | `0.5` |
+
+#### STRING PPI (optional)
+
+- Provide a tab-delimited STRING **physical** mapping with at least **`gene1`**, **`gene2`**, **`combined_score`** (and preferably `experimental`, `database`, `textmining`). Edges with `combined_score` > `--ppi-min-combined-score` are kept; per gene, up to **five** partners are attached under **`ppi_evidence`** in the evidence JSON for TMPS.
+- PPI is **optional supporting** evidence in the prompt: absence must not be used to lower TMPS; the model outputs **`ppi_network_comment`** describing network support when present.
+
+#### TMPS evidence ablation (`--tmps-evidence-mode`)
+
+Use distinct **`--out-prefix`** values per mode when comparing runs. Modes apply **only** to the TMPS LLM payload (after full evidence is built in memory). Exported fastBAT columns in `{prefix}_gene_tmps.tsv` (e.g. `Pvalue`, `Chr`) remain from the original table for traceability.
+
+| Mode | Effect (TMPS JSON sent to LLM) |
+|------|--------------------------------|
+| `full` | No withholding (default). |
+| `no_gwas` | GWAS statistic fields removed; flag `gwas_statistics_withheld`. |
+| `no_expression` | Expression summary emptied. |
+| `no_annotation` | IPR / Pfam / UniProt / GN / GO / KEGG lists emptied. |
+| `no_ppi` | `ppi_evidence` replaced with empty partners + ablation note. |
+| `gwas_only` / `annotation_only` / `expression_only` / `ppi_only` | Only that evidence block (+ `gene_id`) is retained. |
+
+Non-`full` runs add a short **controlled ablation** notice in the TMPS user prompt so the model treats missing blocks as intentional.
 
 #### TMPS Score Interpretation
 
@@ -423,6 +473,7 @@ EOF
 | Annotation file missing warnings | Annotation files are optional; missing ones do not affect core execution |
 | `calc_priority.py` slow on first run | `sentence-transformers` downloads the model (~400 MB) on first use |
 | PubMed query timeout | Configure `NCBI_API_KEY`; or increase `--sleep-ncbi` |
+| STRING PPI file missing | TMPS runs without PPI; warnings only. Provide `--string-ppi` when available |
 | LLM JSON parse failure | Built-in error handling fills defaults; subsequent genes are unaffected |
 
 ---
@@ -438,13 +489,14 @@ Post-GWAS_gene_agent/
 ├── key.txt                                  # DeepSeek API Key (user-created)
 │
 ├── Scripts:
-├── post_gwas_gene_agent.py                  # TMPS scoring + literature validation
+├── post_gwas_gene_agent.py                  # TMPS scoring + literature validation 
 ├── calc_priority.py                         # Semantic priority calculation
 ├── gene_ai_analysis.py                      # AI gene functional analysis
 │
 ├── Input data (pre-prepared):
 ├── stringtie_gene_314_TPM.txt               # TPM expression matrix
 ├── TPM_class.txt                            # Sample grouping annotation
+├── STRING_ZH13v2.1_physical_links.tsv       # Optional STRING physical PPI (ZH13v2.1 gene IDs)
 ├── ZH13.gene.iprscn.mod.txt                 # InterProScan annotations
 ├── ZH13.gene.Pfam.mod.txt                   # Pfam annotations
 ├── ZH13.gene.uniprot.plants.simple.txt      # UniProt annotations
@@ -514,7 +566,7 @@ grep -R "version https://git-lfs.github.com/spec/v1" -n .
 
 | 脚本 | 用途 | 是否需要 API Key |
 |------|------|:----------------:|
-| `post_gwas_gene_agent.py` | 候选基因 TMPS 评分与 PubMed 文献验证 | 需要（DeepSeek） |
+| `post_gwas_gene_agent.py` | 候选基因 TMPS 评分（可选 STRING PPI、消融模式）与 PubMed 文献验证 | 需要（DeepSeek） |
 | `calc_priority.py` | 语义性状匹配与多维度基因优先级排名 | 不需要 |
 | `gene_ai_analysis.py` | AI 生成学术出版级基因功能分析报告 | 需要（DeepSeek） |
 
@@ -570,7 +622,11 @@ export NCBI_API_KEY="your-ncbi-api-key"
 
 #### 功能说明
 
-本脚本对 GWAS 研究中的候选基因进行综合评估，整合多组学证据——GWAS 统计量、多组织表达谱、功能注释（InterPro、Pfam、UniProt、GO、KEGG），调用大语言模型（DeepSeek）为每个基因计算 **TMPS（Trait Mechanistic Prioritization Score，性状机制优先级评分）**，并可选开启 PubMed 文献检索验证高分候选基因。
+本脚本对 GWAS 研究中的候选基因进行综合评估，整合多组学证据——GWAS 统计量、多组织表达谱、功能注释（InterPro、Pfam、UniProt、GO、KEGG），以及 **可选的 STRING 高置信度物理蛋白互作（PPI）**（基因 ID 需与注释/表达矩阵一致）。调用大语言模型（DeepSeek）为每个基因计算 **TMPS**，并在启用 PPI 时额外输出 **`ppi_network_comment`**；可选开启 PubMed 文献检索验证高分候选基因。
+
+**跨物种 / PubMed：** 可通过 **`--species`**、**`--gene-id-pattern`**（正则：匹配的内部基因号等走 PubMed `[All Fields]`）、**`--pubmed-organism-terms`**（每行一条 PubMed 物种 OR 子句，支持 `#` 注释）调整检索语境，无需改核心代码。
+
+**TMPS 敏感性分析（消融）：** **`--tmps-evidence-mode`** 仅在送入 TMPS 模型的 JSON 上做裁剪（如 `no_gwas`、`no_annotation`、`no_expression`、`no_ppi` 或 `gwas_only` 等）。**`--run-literature`** 阶段的 PubMed 检索仍默认使用完整注释构建检索词（与 TMPS 消融独立）。
 
 #### 简洁模式（Gene-List-Only Mode）
 
@@ -609,9 +665,10 @@ pip install pandas requests openai tenacity
 | `ZH13.GN.txt` | `--gn` | 基因名称映射表 | **已准备好** |
 | `ZH13.GO.txt` | `--go` | Gene Ontology 注释 | **已准备好** |
 | `ZH13.KEGG.txt` | `--kegg` | KEGG 通路注释 | **已准备好** |
+| `STRING_*_physical_links.tsv`（如 ZH13v2.1） | `--string-ppi` | STRING 物理互作表，需含 `gene1`、`gene2`、`combined_score` 等列（基因 ID 与注释一致） | **可选** |
 | `key.txt` | — | DeepSeek API Key（或设环境变量） | **已准备好** |
 
-> 注释文件（ipr, pfam, uniprot, gn, go, kegg）为可选项，缺失时会输出警告但不影响运行。
+> 注释文件（ipr, pfam, uniprot, gn, go, kegg）为可选项，缺失时会输出警告但不影响运行。若未提供或无法读取 `--string-ppi`，则跳过 PPI，仅告警后继续。
 
 #### 运行示例
 
@@ -654,6 +711,19 @@ python post_gwas_gene_agent.py \
     --out-prefix gwas_height_chr1_5_20
 ```
 
+**TMPS + STRING PPI + 消融示例（不同模式请使用不同 `--out-prefix`）：**
+
+```bash
+python post_gwas_gene_agent.py \
+    --fastbat 2898zhugao.pheno.clean.mlma.ma.gene.fastbat \
+    --trait "Soybean plant height" \
+    --pvalue-threshold 0.1 \
+    --top-n 30 \
+    --string-ppi STRING_ZH13v2.1_physical_links.tsv \
+    --tmps-evidence-mode no_ppi \
+    --out-prefix gwas_height_no_ppi
+```
+
 **TMPS + 文献验证：**
 
 ```bash
@@ -672,8 +742,8 @@ python post_gwas_gene_agent.py \
 
 | 输出文件 | 说明 |
 |----------|------|
-| `{prefix}_gene_tmps.tsv` | TMPS 排名候选基因表（含评分、LLM 评语） |
-| `{prefix}_gene_cards.jsonl` | 详细基因证据卡片（JSON Lines 格式） |
+| `{prefix}_gene_tmps.tsv` | TMPS 排名表（含 `statistical_support_comment`、`functional_relevance_comment`、`expression_comment`、**`ppi_network_comment`**、`mechanistic_summary`、**`tmps_evidence_mode`**） |
+| `{prefix}_gene_cards.jsonl` | 基因证据卡片（JSONL；含 LLM 字段、可选 **`ppi_evidence`** 快照、**`tmps_evidence_mode`**） |
 | `{prefix}_high_tmps_go_counts.tsv` | 高 TMPS 基因的 GO term 富集计数 |
 | `{prefix}_gene_lit_support.tsv` | 文献支持度摘要（需 `--run-literature`） |
 | `{prefix}_gene_lit_cards.jsonl` | 详细文献卡片（需 `--run-literature`） |
@@ -695,6 +765,38 @@ python post_gwas_gene_agent.py \
 | `--model` | DeepSeek 模型 | `deepseek-chat` |
 | `--temperature` | LLM 温度 | `0.1` |
 | `--sleep` | LLM 请求间隔（秒） | `0.5` |
+| `--expr` | TPM 表达矩阵路径 | `stringtie_gene_314_TPM.txt` |
+| `--expr-meta` | 表达样本元数据（需 `SampleName`、`Stage`、`Organ1` 等） | `TPM_class.txt` |
+| `--ipr` / `--pfam` / `--uniprot` / `--gn` / `--go` / `--kegg` | 各注释表路径 | ZH13 默认文件名 |
+| `--string-ppi` | STRING 物理互作 TSV（与注释同一套基因 ID） | 扩展版默认路径；文件**可选** |
+| `--ppi-min-combined-score` | 纳入 TMPS 的 STRING `combined_score` 下限 | `700` |
+| `--species` | 写入 TMPS/文献 prompt 的物种标签 | `Glycine max` |
+| `--gene-id-pattern` | 正则：匹配的 PubMed 检索词使用 `[All Fields]` | `^SoyZH13_` |
+| `--pubmed-organism-terms` | 文本文件：每行一条 PubMed 物种子句（可用 `#` 注释）；省略则用内置大豆/植物列表 | — |
+| `--tmps-evidence-mode` | TMPS 输入消融：`full`、`no_gwas`、`no_annotation`、`no_expression`、`no_ppi`、`gwas_only`、`annotation_only`、`expression_only`、`ppi_only` | `full` |
+| `--esearch-retmax` | 文献模式下 PubMed ESearch 的 `retmax` | `80` |
+| `--sleep-ncbi` | NCBI 请求间隔（秒） | `0.34` |
+| `--sleep-llm` | 文献阶段 LLM 调用间隔（秒） | `0.5` |
+
+#### STRING PPI（可选）
+
+- 输入为 tab 分隔的 STRING **physical** 表，至少含 **`gene1`**、**`gene2`**、**`combined_score`**（建议含 `experimental`、`database`、`textmining`）。保留 `combined_score` > `--ppi-min-combined-score` 的边；每个候选基因最多 **5** 个互作伙伴写入 TMPS 证据 JSON 的 **`ppi_evidence`**。
+- PPI 在 prompt 中为**可选支持证据**：不得仅因无 PPI 而压低 TMPS；模型输出 **`ppi_network_comment`** 描述网络支持情况。
+
+#### TMPS 证据消融（`--tmps-evidence-mode`）
+
+对比不同模式时请使用不同 **`--out-prefix`**。消融**仅改写**送入 TMPS 的 JSON（内存中在完整证据构建之后应用）。`{prefix}_gene_tmps.tsv` 中来自 fastBAT 的列（如 `Pvalue`、`Chr`）**不随** `no_gwas` 从表中删除，便于与原始统计对照。
+
+| 模式 | 作用（送入 TMPS 的 JSON） |
+|------|---------------------------|
+| `full` | 默认，不裁剪。 |
+| `no_gwas` | 去掉 GWAS 统计相关字段；标记 `gwas_statistics_withheld`。 |
+| `no_expression` | 清空表达摘要。 |
+| `no_annotation` | 清空 IPR / Pfam / UniProt / GN / GO / KEGG 列表。 |
+| `no_ppi` | 将 `ppi_evidence` 置为空伙伴并附消融说明。 |
+| `gwas_only` / `annotation_only` / `expression_only` / `ppi_only` | 仅保留对应证据块与 `gene_id`。 |
+
+非 `full` 时会在 TMPS 用户提示中附加**受控消融**说明，避免模型把缺失块误判为真实数据缺失。
 
 #### TMPS 评分解读
 
@@ -875,6 +977,7 @@ EOF
 | 注释文件缺失的警告 | 注释文件为可选项，缺失不影响核心流程 |
 | `calc_priority.py` 首次运行很慢 | `sentence-transformers` 首次运行时需下载模型（约 400 MB） |
 | PubMed 查询超时 | 配置 `NCBI_API_KEY` 提高请求频率限制；或增大 `--sleep-ncbi` |
+| 未提供或无法读取 STRING PPI 文件 | TMPS 在无 PPI 下继续运行，仅警告；需要时传入 `--string-ppi` |
 | LLM 返回 JSON 解析失败 | 脚本已内置容错处理，会用默认值填充，不影响后续基因的分析 |
 
 ---
@@ -890,13 +993,14 @@ Post-GWAS_gene_agent/
 ├── key.txt                                  # DeepSeek API Key（用户自行创建）
 │
 ├── 脚本：
-├── post_gwas_gene_agent.py                  # TMPS 评分 + 文献验证
+├── post_gwas_gene_agent.py                  # TMPS + 文献验证
 ├── calc_priority.py                         # 语义优先级计算
 ├── gene_ai_analysis.py                      # AI 基因功能分析
 │
 ├── 输入数据（已准备好）：
 ├── stringtie_gene_314_TPM.txt               # TPM 表达矩阵
 ├── TPM_class.txt                            # 样本分组注释
+├── STRING_ZH13v2.1_physical_links.tsv       # 可选 STRING 物理互作（ZH13v2.1 基因 ID）
 ├── ZH13.gene.iprscn.mod.txt                 # InterProScan 注释
 ├── ZH13.gene.Pfam.mod.txt                   # Pfam 注释
 ├── ZH13.gene.uniprot.plants.simple.txt      # UniProt 注释
