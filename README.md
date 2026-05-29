@@ -139,7 +139,6 @@ This script evaluates candidate genes from GWAS studies by integrating multi-omi
 SoyZH13_06G001200
 SoyZH13_06G003400
 SoyZH13_06G015800
-SoyZH13_09G072600
 ```
 
 #### Required Packages
@@ -185,7 +184,7 @@ python post_gwas_gene_agent.py \
 python post_gwas_gene_agent.py \
     --fastbat my_genes.txt \
     --trait "Soybean lodging resistance" \
-    --top-n 200 \
+    --top-n 20 \
     --out-prefix lodging_genes
 ```
 
@@ -643,7 +642,6 @@ export NCBI_API_KEY="your-ncbi-api-key"
 SoyZH13_06G001200
 SoyZH13_06G003400
 SoyZH13_06G015800
-SoyZH13_09G072600
 ```
 
 #### 所需安装的包
@@ -689,7 +687,7 @@ python post_gwas_gene_agent.py \
 python post_gwas_gene_agent.py \
     --fastbat my_genes.txt \
     --trait "Soybean lodging resistance" \
-    --top-n 200 \
+    --top-n 20 \
     --out-prefix lodging_genes
 ```
 
