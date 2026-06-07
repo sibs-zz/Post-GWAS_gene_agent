@@ -215,7 +215,7 @@ SA_VE6	VE6	ShootApex	-	-	-	-
 Se_R3_S1	R3_R8	Seed	Stage1	-	-	-
 Se_R3_S11	R3_R8	Seed	Stage11	-	-	-
 Se_R3_S13	R3_R8	Seed	Stage13	-	-	-
-Se_R3_S13_Enb	R3_R8	Seed	Stage13	Enbryo	-	-
+Se_R3_S13_Emb	R3_R8	Seed	Stage13	Embryo	-	-
 Se_R3_S13_End	R3_R8	Seed	Stage13	Endosperm	-	-
 Se_R3_S13_SC	R3_R8	Seed	Stage13	SeedCoat	-	-
 Se_R3_S14	R3_R8	Seed	Stage14	-	-	-
@@ -224,7 +224,7 @@ Se_R3_S16	R3_R8	Seed	Stage16	-	-	-
 Se_R3_S17	R3_R8	Seed	Stage17	-	-	-
 Se_R3_S18	R3_R8	Seed	Stage18	-	-	-
 Se_R3_S19	R3_R8	Seed	Stage19	-	-	-
-Se_R3_S19_Enb	R3_R8	Seed	Stage19	Enbryo	-	-
+Se_R3_S19_Emb	R3_R8	Seed	Stage19	Embryo	-	-
 Se_R3_S19_End	R3_R8	Seed	Stage19	Endosperm	-	-
 Se_R3_S19_SC	R3_R8	Seed	Stage19	SeedCoat	-	-
 Se_R3_S2	R3_R8	Seed	Stage2	-	-	-
