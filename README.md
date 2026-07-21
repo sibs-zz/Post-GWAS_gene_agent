@@ -48,9 +48,17 @@ The git repository contains **only the code** (5 scripts, `README.md`, `requirem
 
 #### Download Release tarball and run
 
-Download **`SoySAGE_full_v1.0.0.tar.gz`** from [GitHub Releases](https://github.com/sibs-zz/Post-GWAS_gene_agent/releases), extract, install dependencies, and run:
+Download **`SoySAGE_full_v1.0.0.tar.gz`** from [GitHub Releases](https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/tag/v1.0.0) (the Release **Assets** file — not the auto-generated “Source code” archive), extract, install dependencies, and run:
 
 ```bash
+# Direct (may be slow or fail on some networks)
+wget -O SoySAGE_full_v1.0.0.tar.gz \
+  "https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/download/v1.0.0/SoySAGE_full_v1.0.0.tar.gz"
+
+# If GitHub is unreachable from the command line, use a mirror (example):
+wget -O SoySAGE_full_v1.0.0.tar.gz \
+  "https://ghfast.top/https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/download/v1.0.0/SoySAGE_full_v1.0.0.tar.gz"
+
 tar -xzf SoySAGE_full_v1.0.0.tar.gz
 cd SoySAGE_full_v1.0.0   # or your extract directory — all files in one folder
 
@@ -59,6 +67,8 @@ export DEEPSEEK_API_KEY="your-api-key"   # or create key.txt
 
 python post_gwas_gene_agent_v1.py --fastbat tst.list --trait "Soybean plant height" --out-prefix tst
 ```
+
+> Browser download from the Release page often works even when `wget`/`curl` to `github.com` stalls. Prefer the asset named **`SoySAGE_full_v1.0.0.tar.gz`**.
 
 The tarball is self-contained (~308 MB compressed, ~760 MB extracted): **5 scripts + 21 data files + README + requirements.txt + requirements-agent.txt + LICENSE**. No `git clone` needed.
 
@@ -682,9 +692,17 @@ git 仓库**仅包含代码**（5 个脚本、`README.md`、`requirements*.txt`�
 
 #### 下载 Release 压缩包并运行
 
-从 [GitHub Releases](https://github.com/sibs-zz/Post-GWAS_gene_agent/releases) 下载 **`SoySAGE_full_v1.0.0.tar.gz`**，解压、安装依赖后即可运行：
+从 [GitHub Releases](https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/tag/v1.0.0) 下载 **`SoySAGE_full_v1.0.0.tar.gz`**（请下 Release **Assets** 里的数据包，不要下自动生成的 Source code 源码包），解压、安装依赖后即可运行：
 
 ```bash
+# 直连（部分网络下 wget/curl 可能卡住）
+wget -O SoySAGE_full_v1.0.0.tar.gz \
+  "https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/download/v1.0.0/SoySAGE_full_v1.0.0.tar.gz"
+
+# 若命令行访问 GitHub 失败，可用镜像（示例）：
+wget -O SoySAGE_full_v1.0.0.tar.gz \
+  "https://ghfast.top/https://github.com/sibs-zz/Post-GWAS_gene_agent/releases/download/v1.0.0/SoySAGE_full_v1.0.0.tar.gz"
+
 tar -xzf SoySAGE_full_v1.0.0.tar.gz
 cd SoySAGE_full_v1.0.0
 
@@ -693,6 +711,8 @@ export DEEPSEEK_API_KEY="your-api-key"   # 或创建 key.txt
 
 python post_gwas_gene_agent_v1.py --fastbat tst.list --trait "Soybean plant height" --out-prefix tst
 ```
+
+> 网页点 Release 下载常常比服务器上的 `wget`/`curl` 更稳。请认准附件名 **`SoySAGE_full_v1.0.0.tar.gz`**。
 
 压缩包自包含（压缩约 308 MB，解压约 760 MB）：**5 个脚本 + 21 个数据文件 + README + requirements.txt + requirements-agent.txt + LICENSE**，无需 `git clone`。
 
