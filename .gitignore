@@ -1,0 +1,53 @@
+# Local temp / debug files
+__pycache__/
+*.py[cod]
+.TPM_class_HEAD.txt
+.tmp_head_tpm
+
+# Release bundles (upload to GitHub Releases, do not commit)
+SoySAGE_full_*.tar.gz
+SoySAGE_data_full_*.tar.gz
+
+# Raw data files — distributed ONLY via GitHub Releases (pack_release_data.sh),
+# never committed to git (keeps the repo lightweight; no Git LFS quota needed).
+# Kept in-repo: tst.list, TPM_class.txt (tiny examples).
+2898zhugao.pheno.clean.mlma.ma.gene.fastbat
+stringtie_gene_314_TPM.txt
+ZH13.gene.iprscn.mod.txt
+ZH13.gene.Pfam.mod.txt
+ZH13.gene.uniprot.plants.simple.txt
+ZH13.GN.txt
+ZH13.GO.txt
+ZH13.KEGG.txt
+STRING_ZH13v2.1_physical_links.tsv
+STRING_ZH13v3_physical_links.tsv
+Soybean_Gene_Embeddings_Full.npy
+Soybean_Gene_Semantic_Profiles_Full.csv
+Gene_Phenotype_Associations_Readable_clean.csv
+ZH13v3_53403_314tissue_gene_TPM.txt
+ZHV3.0_mRNA_53403_20250402_DE.txt
+ZH13v3.GN.txt
+ZH13v3_ZH13v2_Wm82_Ath.txt
+ZHV3.0_mRNA_53403_20250402_gene_GO.txt
+ZHV3.0_mRNA_53403_20250402_gene_KEGG_pathway.txt
+
+# Secrets — never commit
+key.txt
+
+.agent_cache_v1/
+*_tmps.checkpoint.jsonl
+*_lit.checkpoint.jsonl
+
+# Analysis outputs (user-generated)
+*_gene_tmps.tsv
+*_gene_cards.jsonl
+*_gene_lit_support.tsv
+*_gene_lit_cards.jsonl
+*_high_tmps_go_counts.tsv
+*_Analysis_Report.md
+Priority_Rankings_Concept_*.csv
+
+# Local logs / batch scripts (not part of public repo)
+nohup.out
+815pop*.sh
+run0.sh
