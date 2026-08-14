@@ -65,7 +65,7 @@ BASE_URL = "https://api.deepseek.com"
 PROFILE_FILE = 'Soybean_Gene_Semantic_Profiles_Full.csv'
 GWAS_FILE = 'Gene_Phenotype_Associations_Readable_clean.csv'
 
-MODEL_NAME = "deepseek-v4-pro"
+MODEL_NAME = "deepseek-v4-flash"
 TEMPERATURE = 0.2
 # Reports are meant to be comprehensive (multi-section + proposed experiments);
 # 1800 tokens truncated longer reports, so allow more headroom.

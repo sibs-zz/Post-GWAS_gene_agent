@@ -1410,7 +1410,7 @@ def _parse_llm_json(content: str) -> Optional[Dict[str, Any]]:
 def call_deepseek_tmps(
     trait: str,
     gene_evidence: dict,
-    model: str = "deepseek-v4-pro",
+    model: str = "deepseek-v4-flash",
     temperature: float = 0.1,
     max_tokens: int = 4096,
     species: str = "Glycine max",
@@ -2062,7 +2062,7 @@ def call_deepseek_literature_agent(
     trait: Optional[str],
     gene_terms: List[str],
     papers: List[Dict[str, Any]],
-    model: str = "deepseek-v4-pro",
+    model: str = "deepseek-v4-flash",
     temperature: float = 0.1,
     max_tokens: int = 4096,
     species: str = "Glycine max",
@@ -2502,7 +2502,7 @@ def main():
                        help="ESearch retmax (larger values improve recall)")
     
     # LLM arguments
-    parser.add_argument("--model", default="deepseek-v4-pro",
+    parser.add_argument("--model", default="deepseek-v4-flash",
                        help="DeepSeek model name")
     parser.add_argument("--temperature", type=float, default=0.1,
                        help="LLM sampling temperature")

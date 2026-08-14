@@ -329,7 +329,7 @@ python post_gwas_gene_agent_v1.py \
 | `--run-literature` | Enable literature validation | `False` |
 | `--tmps-threshold` | TMPS threshold for literature | `0.8` |
 | `--max-papers-per-gene` | Max PubMed papers per gene | `5` |
-| `--model` | DeepSeek model | `deepseek-v4-pro` |
+| `--model` | DeepSeek model | `deepseek-v4-flash` |
 | `--temperature` | LLM temperature | `0.1` |
 | `--sleep` / `--sleep-ncbi` / `--sleep-llm` | Per-gene delays (seconds); increase if API 429 | `0.0` |
 | `--expr` | TPM matrix | `ZH13v3_53403_314tissue_gene_TPM.txt` |
@@ -973,7 +973,7 @@ python post_gwas_gene_agent_v1.py \
 | `--run-literature` | 开启文献验证 | `False` |
 | `--tmps-threshold` | 文献验证 TMPS 阈值 | `0.8` |
 | `--max-papers-per-gene` | 每基因最大 PubMed 论文数 | `5` |
-| `--model` | DeepSeek 模型 | `deepseek-v4-pro` |
+| `--model` | DeepSeek 模型 | `deepseek-v4-flash` |
 | `--temperature` | LLM 温度 | `0.1` |
 | `--sleep` / `--sleep-ncbi` / `--sleep-llm` | 各阶段请求间隔（秒）；遇 API 429 可增大 | `0.0` |
 | `--expr` | TPM 矩阵 | `ZH13v3_53403_314tissue_gene_TPM.txt` |
