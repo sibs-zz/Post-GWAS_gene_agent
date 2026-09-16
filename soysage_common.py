@@ -8,7 +8,7 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import pandas as pd
 
@@ -226,3 +226,167 @@ class GeneCrossRefKB:
 
 def load_crossref_kb(path: str = CROSSREF_DEFAULT) -> GeneCrossRefKB:
     return GeneCrossRefKB(require_data_file(path, "Cross-version gene KB"))
+
+
+class ExpressionBundle(NamedTuple):
+    grouped_expr: pd.DataFrame
+    organ1_expr: pd.DataFrame
+    seed_comp_expr: pd.DataFrame
+    group_to_organ1: Dict[str, str]
+
+
+def _make_expression_group_label(row: pd.Series) -> str:
+    stage = str(row.get("Stage", "NA"))
+    organ1 = str(row.get("Organ1", "NA"))
+    organ1serial = str(row.get("Organ1Serial", ""))
+    if organ1 in ("-", "NA"):
+        return stage
+    label = f"{stage}_{organ1}"
+    if organ1serial not in ("", "-", "NA"):
+        label += f"_{organ1serial}"
+    return label
+
+
+def _load_expression_meta(meta_path: str) -> pd.DataFrame:
+    meta_df = pd.read_csv(meta_path, sep="\t", engine="python")
+    if "SampleName" not in meta_df.columns:
+        raise ValueError("TPM_class.txt must contain 'SampleName' column")
+    meta_df["SampleName"] = (
+        meta_df["SampleName"].astype(str).str.strip().str.replace("-", "_")
+    )
+    meta_df = meta_df.set_index("SampleName")
+    meta_df["Group"] = meta_df.apply(_make_expression_group_label, axis=1)
+    return meta_df
+
+
+def _compute_expression_bundle(expr_df: pd.DataFrame, meta_df: pd.DataFrame) -> ExpressionBundle:
+    """Build fine-grained, organ1, and seed-compartment expression views."""
+    common_samples = sorted(set(expr_df.columns) & set(meta_df.index))
+    if not common_samples:
+        raise ValueError(
+            "No overlapping sample names between expression matrix and sample annotation"
+        )
+
+    expr_df = expr_df[common_samples]
+    group_to_samples: Dict[str, List[str]] = defaultdict(list)
+    organ1_to_samples: Dict[str, List[str]] = defaultdict(list)
+    seed_comp_to_samples: Dict[str, List[str]] = defaultdict(list)
+    group_to_organ1: Dict[str, str] = {}
+
+    for sample in common_samples:
+        row = meta_df.loc[sample]
+        group = str(row["Group"])
+        organ1 = str(row.get("Organ1", "NA"))
+        group_to_samples[group].append(sample)
+        organ1_to_samples[organ1].append(sample)
+        group_to_organ1[group] = organ1
+        if organ1 == "Seed":
+            organ2 = str(row.get("Organ2", "-"))
+            compartment = organ2 if organ2 not in ("-", "NA", "") else "WholeSeed"
+            seed_comp_to_samples[compartment].append(sample)
+
+    grouped_expr = pd.DataFrame(
+        {group: expr_df[samples].mean(axis=1) for group, samples in group_to_samples.items()},
+        index=expr_df.index,
+    )
+    organ1_expr = pd.DataFrame(
+        {organ1: expr_df[samples].mean(axis=1) for organ1, samples in organ1_to_samples.items()},
+        index=expr_df.index,
+    )
+    seed_comp_expr = (
+        pd.DataFrame(
+            {comp: expr_df[samples].mean(axis=1) for comp, samples in seed_comp_to_samples.items()},
+            index=expr_df.index,
+        )
+        if seed_comp_to_samples
+        else pd.DataFrame(index=expr_df.index)
+    )
+    return ExpressionBundle(grouped_expr, organ1_expr, seed_comp_expr, group_to_organ1)
+
+
+def load_expression_bundle(expr_path: str, meta_path: str) -> ExpressionBundle:
+    """Load TPM matrix and return multi-level expression summaries."""
+    expr_df = pd.read_csv(expr_path, sep="\t", engine="python")
+    expr_df.rename(columns={expr_df.columns[0]: "Gene"}, inplace=True)
+    expr_df.set_index("Gene", inplace=True)
+    expr_df.index = expr_df.index.astype(str)
+    new_cols = [str(c).strip().replace("-", "_") for c in expr_df.columns]
+    expr_df.columns = new_cols
+    expr_df = expr_df.apply(pd.to_numeric, errors="coerce")
+    meta_df = _load_expression_meta(meta_path)
+    return _compute_expression_bundle(expr_df, meta_df)
+
+
+def empty_expression_summary() -> Dict[str, Any]:
+    return {
+        "top_groups_by_mean_TPM": [],
+        "by_organ1": [],
+        "seed_compartments": [],
+        "max_TPM": None,
+        "mean_TPM_all_groups": None,
+    }
+
+
+def summarize_expression_for_gene(
+    gene_id: str,
+    expr_bundle: ExpressionBundle,
+    *,
+    top_expr_k: int = 12,
+    organ1_top_k: int = 15,
+    expr_threshold: float = 1.0,
+    include_seed_compartments: bool = True,
+) -> Dict[str, Any]:
+    """Multi-tissue expression summary: one best group per organ plus organ1 means."""
+    empty = empty_expression_summary()
+    grouped_expr = expr_bundle.grouped_expr
+    if gene_id not in grouped_expr.index:
+        return empty
+
+    expr_series = grouped_expr.loc[gene_id]
+    group_to_organ1 = expr_bundle.group_to_organ1
+
+    by_organ1: List[Dict[str, Any]] = []
+    if gene_id in expr_bundle.organ1_expr.index and not expr_bundle.organ1_expr.empty:
+        organ1_series = expr_bundle.organ1_expr.loc[gene_id].sort_values(ascending=False)
+        for organ1, value in organ1_series.items():
+            if float(value) >= expr_threshold:
+                by_organ1.append({"organ1": str(organ1), "mean_TPM": float(value)})
+        by_organ1 = by_organ1[:organ1_top_k]
+
+    seed_compartments: List[Dict[str, Any]] = []
+    if (
+        include_seed_compartments
+        and gene_id in expr_bundle.seed_comp_expr.index
+        and not expr_bundle.seed_comp_expr.empty
+    ):
+        comp_series = expr_bundle.seed_comp_expr.loc[gene_id].sort_values(ascending=False)
+        for compartment, value in comp_series.items():
+            if float(value) > 0:
+                seed_compartments.append(
+                    {"compartment": str(compartment), "mean_TPM": float(value)}
+                )
+
+    organ1_best: Dict[str, Tuple[str, float]] = {}
+    for group, value in expr_series.items():
+        tpm = float(value)
+        if tpm < expr_threshold:
+            continue
+        organ1 = group_to_organ1.get(str(group), "Other")
+        prev = organ1_best.get(organ1)
+        if prev is None or tpm > prev[1]:
+            organ1_best[organ1] = (str(group), tpm)
+
+    diverse_groups = [
+        {"group": group, "mean_TPM": tpm, "organ1": organ1}
+        for organ1, (group, tpm) in organ1_best.items()
+    ]
+    diverse_groups.sort(key=lambda item: -item["mean_TPM"])
+    diverse_groups = diverse_groups[:top_expr_k]
+
+    return {
+        "top_groups_by_mean_TPM": diverse_groups,
+        "by_organ1": by_organ1,
+        "seed_compartments": seed_compartments,
+        "max_TPM": float(expr_series.max()),
+        "mean_TPM_all_groups": float(expr_series.mean()),
+    }

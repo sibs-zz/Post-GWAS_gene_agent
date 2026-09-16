@@ -524,7 +524,7 @@ A higher Priority Index indicates stronger association between the gene and the 
 
 #### Description
 
-This script takes gene IDs of interest (**ZH13v3**, **ZH13v2**, or **Wm82** — auto-resolved via `ZH13v3_ZH13v2_Wm82_Ath.txt`), retrieves their semantic profiles (biological context) and GWAS statistical evidence, then calls the DeepSeek LLM to generate **publication-grade** gene functional analysis reports. Each report includes a core conclusion, evidence synthesis, molecular mechanism hypothesis, and proposed validation experiments.
+This script takes gene IDs of interest (**ZH13v3**, **ZH13v2**, or **Wm82** — auto-resolved via `ZH13v3_ZH13v2_Wm82_Ath.txt`), retrieves their semantic profiles, **all significant GWAS hits summarized by trait** (not the 10 lowest-*P* SNP rows), and a **314-sample multi-organ expression summary** (Organ1 means, best group per organ, seed compartments; same scheme as `post_gwas_gene_agent_v1.py`). It then calls DeepSeek to generate a gene functional analysis report (core conclusion, evidence synthesis, mechanism hypothesis, proposed experiments). A report is still written when the gene has no GWAS hits.
 
 Bundled data files are resolved from the **script directory** automatically — no `cd` required.
 
@@ -540,10 +540,12 @@ pip install pandas openai tenacity
 |------|-------------|--------|
 | `Soybean_Gene_Semantic_Profiles_Full.csv` | Gene semantic profiles | **Ready** |
 | `Gene_Phenotype_Associations_Readable_clean.csv` | GWAS gene-phenotype associations | **Ready** |
+| `stringtie_gene_314_TPM.txt` | 314-sample TPM matrix (ZH13v2 gene rows) | **Ready** |
+| `TPM_class.txt` | Sample grouping (Stage, Organ1, …) | **Ready** |
 | `ZH13v3_ZH13v2_Wm82_Ath.txt` | Cross-version gene ID map | **Ready** |
 | `key.txt` | DeepSeek API Key (or set env variable) | **Ready** |
 
-> Semantic profiles and GWAS tables use **ZH13v2** gene IDs internally; ZH13v3 / Wm82 inputs are mapped automatically.
+> Semantic profiles, GWAS, and the TPM matrix use **ZH13v2** gene IDs internally; ZH13v3 / Wm82 inputs are mapped automatically. GWAS evidence is aggregated per trait (`N_Records`, unique SNPs, environments, lead SNP).
 
 #### Usage Examples
 
@@ -1168,7 +1170,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 #### 功能说明
 
-本脚本输入感兴趣的基因 ID（支持 **ZH13v3**、**ZH13v2**、**Wm82**，经 `ZH13v3_ZH13v2_Wm82_Ath.txt` 自动转换），检索其语义 Profile（生物学背景）和 GWAS 统计证据，然后调用 DeepSeek LLM 生成**学术出版级别**的基因功能分析报告。每份报告包含核心结论、证据综合分析、分子机制假说和实验验证建议。
+本脚本输入感兴趣的基因 ID（支持 **ZH13v3**、**ZH13v2**、**Wm82**，经 `ZH13v3_ZH13v2_Wm82_Ath.txt` 自动转换），检索语义 Profile、**按性状汇总的全部显著 GWAS 记录**（不再只取 P 最小的 10 条 SNP），以及 **314 样本多器官表达摘要**（Organ1 均值、每器官最佳组、种子亚组织，与 `post_gwas_gene_agent_v1.py` 相同）。然后调用 DeepSeek 生成基因功能分析报告（核心结论、证据综合、机制假说、实验建议）。无 GWAS 命中时仍会根据注释和表达写出报告。
 
 捆绑数据文件从 **脚本所在目录** 自动解析，无需 `cd`。
 
@@ -1184,10 +1186,12 @@ pip install pandas openai tenacity
 |------|------|------|
 | `Soybean_Gene_Semantic_Profiles_Full.csv` | 基因语义 Profile | **已准备好** |
 | `Gene_Phenotype_Associations_Readable_clean.csv` | GWAS 基因-表型关联表 | **已准备好** |
+| `stringtie_gene_314_TPM.txt` | 314 样本 TPM 矩阵（ZH13v2 基因行） | **已准备好** |
+| `TPM_class.txt` | 样本分组（Stage、Organ1 等） | **已准备好** |
 | `ZH13v3_ZH13v2_Wm82_Ath.txt` | 跨版本基因号映射 | **已准备好** |
 | `key.txt` | DeepSeek API Key（或设环境变量） | **已准备好** |
 
-> 语义 Profile 与 GWAS 表内部使用 **ZH13v2** 基因号；ZH13v3 / Wm82 输入会自动映射。
+> 语义 Profile、GWAS 与 TPM 矩阵内部使用 **ZH13v2** 基因号；ZH13v3 / Wm82 输入会自动映射。GWAS 按性状汇总（记录数、独立 SNP 数、环境数、lead SNP）。
 
 #### 运行示例
 
