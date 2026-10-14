@@ -427,12 +427,12 @@ Bundled data files and `ZH13v3_ZH13v2_Wm82_Ath.txt` are resolved from the **scri
 **Priority Index formula** (within-run z-scores on matched GWAS association rows):
 
 ```
-PI = alpha * z(-log10(P)) + (1 - alpha) * z(Semantic_Score)
+PI = (alpha * z(-log10(P)) + (1 - alpha) * z(Semantic_Score)) * I(Max_TPM > 1)
 ```
 
 - `--alpha` (default `0.5`): weight on standardized GWAS evidence; `(1-alpha)` weights standardized gene–query semantic similarity
 - Sensitivity: re-run with `--alpha 0 0.25 0.5 0.75 1` (one value per run) and compare rankings
-- `Expression_Gate`: if Max_TPM ≤ threshold, `PI` is set to `0` (lowly expressed genes filtered)
+- `I(Max_TPM > 1)` is the expression gate (threshold 1.0 TPM). It multiplies the whole sum, so `Max_TPM ≤ 1` sets `PI` to `0`
 - Replaces the old hard-scaled `W1 * logP + W2 * semantic` mix (`W2=100`), which mixed incompatible units
 
 #### Required Packages
@@ -1073,12 +1073,12 @@ tab 分隔的 STRING **physical** 表，需含 `gene1`、`gene2`、`combined_sco
 **Priority Index 计算公式**（在本轮匹配到的 GWAS 关联行内做 z-score 标准化）：
 
 ```
-PI = alpha * z(-log10(P)) + (1 - alpha) * z(Semantic_Score)
+PI = (alpha * z(-log10(P)) + (1 - alpha) * z(Semantic_Score)) * I(Max_TPM > 1)
 ```
 
 - `--alpha`（默认 `0.5`）：标准化后 GWAS 证据的权重；`(1-alpha)` 为标准化语义相似度权重
 - 敏感性分析：分别用 `--alpha 0 / 0.25 / 0.5 / 0.75 / 1` 各跑一遍，比较排序
-- `Expression_Gate`：Max_TPM ≤ 阈值时 `PI` 置 `0`（过滤低表达）
+- `I(Max_TPM > 1)` 是表达量门控（阈值 1.0 TPM），乘在整个和式外面。`Max_TPM ≤ 1` 时 `PI` 为 `0`
 - 取代旧的硬尺度混合 `W1 * logP + W2 * semantic`（`W2=100`，单位不可比）
 
 #### 所需安装的包
