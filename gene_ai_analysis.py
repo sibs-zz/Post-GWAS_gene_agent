@@ -76,9 +76,9 @@ GWAS_FILE = "Gene_Phenotype_Associations_Readable_clean.csv"
 TPM_FILE = "stringtie_gene_314_TPM.txt"
 TPM_META_FILE = "TPM_class.txt"
 
-MODEL_NAME = "deepseek-v4-flash"
+MODEL_NAME = "deepseek-flash"
 TEMPERATURE = 0.2
-# deepseek-v4-flash spends completion tokens on reasoning first; 4096 was often
+# deepseek-flash spends completion tokens on reasoning first; 4096 was often
 # exhausted before any report text, which wrote an empty markdown file.
 MAX_TOKENS = 16384
 
